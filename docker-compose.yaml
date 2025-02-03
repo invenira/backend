@@ -1,0 +1,69 @@
+services:
+  mongo:
+    container_name: mongodb
+    hostname: mongodb
+    image: mongo:8.0.4@sha256:4f93a84f7d4d8b1b6cb7e0c172d8a44b0bed9b399f207165ea19473bdb5a36b0
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: root
+
+  mongo-express:
+    container_name: mongo-express
+    hostname: mongo-express
+    image: mongo-express:1.0.2-18-alpine3.18@sha256:1b23d7976f0210dbec74045c209e52fbb26d29b2e873d6c6fa3d3f0ae32c2a64
+    ports:
+      - "8090:8081"
+    environment:
+      ME_CONFIG_MONGODB_ADMINUSERNAME: root
+      ME_CONFIG_MONGODB_ADMINPASSWORD: root
+      ME_CONFIG_MONGODB_URL: mongodb://root:root@mongodb:27017/
+      ME_CONFIG_BASICAUTH: false
+
+  invenira-keycloak-db:
+    container_name: invenira-keycloak-db
+    hostname: invenira-keycloak-db
+    image: postgres:17.2-bookworm@sha256:888402a8cd6075c5dc83a31f58287f13306c318eaad016661ed12e076f3e6341
+    environment:
+      - POSTGRES_USER=root
+      - POSTGRES_PASSWORD=root
+      - POSTGRES_DB=invenira-keycloak
+      - PGDATA=/var/lib/postgresql/data/pgdata
+    volumes:
+      - kc-db:/var/lib/postgresql/data
+    healthcheck:
+      test: [ "CMD-SHELL", "sh -c 'pg_isready -U root -d invenira-keycloak'" ]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  invenira-keycloak:
+    container_name: invenira-keycloak
+    hostname: invenira-keycloak
+    image: quay.io/keycloak/keycloak:26.0.7@sha256:32d2eb0f84aaf85b3e3afef544d5b25fcd40a791d62374f327a0cb5ca9aa1da5
+    depends_on:
+      invenira-keycloak-db:
+        condition: service_healthy
+    environment:
+      - KC_BOOTSTRAP_ADMIN_USERNAME=admin
+      - KC_BOOTSTRAP_ADMIN_PASSWORD=admin
+      - KC_DB=postgres
+      - KC_DB_URL=jdbc:postgresql://invenira-keycloak-db/invenira-keycloak
+      - KC_DB_USERNAME=root
+      - KC_DB_PASSWORD=root
+    volumes:
+      - ./keycloak/invenira-realm.json:/opt/keycloak/data/import/invenira-realm.json
+      - kc:/opt/keycloak/data/h2
+    command: [ "start-dev", "--import-realm" ]
+    ports:
+      - "8091:8080"
+    healthcheck:
+      test: "{ printf >&3 'GET /realms/invenira/.well-known/openid-configuration HTTP/1.0\r\nHost: localhost\r\n\r\n'; cat <&3; } 3<>/dev/tcp/localhost/8080 | head -1 | grep 200"
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+volumes:
+  kc-db:
+  kc:
