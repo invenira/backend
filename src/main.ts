@@ -4,8 +4,11 @@ import {
   FastifyAdapter,
   NestFastifyApplication,
 } from '@nestjs/platform-fastify';
-import { time, timeDiff } from './monotonic.clock.js';
 import { Logger } from '@nestjs/common';
+
+const time = () => Number(process.hrtime.bigint() / 1_000_000n);
+
+const timeDiff = (s: number) => Number(time() - s);
 
 (async () => {
   const startUp = time();
