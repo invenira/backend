@@ -65,6 +65,7 @@ module.exports = async function () {
     });
 
     server.stdout.on('data', (data) => {
+      process.stdout.write(`${data}\n`);
       if (data.toString().includes('Started in')) {
         console.log('Backend started\n');
         resolve(server.pid?.toString() || '');
