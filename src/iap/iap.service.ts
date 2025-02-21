@@ -13,6 +13,7 @@ import {
   IAP,
   IMutation,
   IQuery,
+  MetricGQLSchema,
   MongoId,
 } from '@invenira/schemas';
 import { BadRequestException, Inject } from '@nestjs/common';
@@ -183,6 +184,71 @@ export class IAPService implements IQuery, IMutation {
     return this.dbService.getIAPs();
   }
 
+  async getActivityProviderRequiredFields(apId: MongoId): Promise<string[]> {
+    const ap = await this.getActivityProvider(apId);
+
+    return this.getApClient(ap.url)
+      .getConfigParameters()
+      .then((parameters) => parameters.map((par) => par.name));
+  }
+
+  async getIAPAvailableMetrics(iapId: MongoId): Promise<MetricGQLSchema[]> {
+    const iap = await this.getIAP(iapId);
+    const contracts = await Promise.all(
+      iap.activityProviders.map((ap) =>
+        this.getApClient(ap.url)
+          .getAnalyticsContract()
+          .then((contract) => {
+            const contracts: {
+              qualAnalytics: MetricGQLSchema[];
+              quantAnalytics: MetricGQLSchema[];
+            }[] = [];
+
+            ap.activities.forEach((activity) => {
+              contracts.push({
+                qualAnalytics:
+                  contract.qualAnalytics?.map((metric) => ({
+                    name:
+                      this.sanitizeString(activity.name) + '.' + metric.name,
+                    description: '',
+                    type: metric.type || '',
+                  })) || [],
+                quantAnalytics:
+                  contract.quantAnalytics?.map((metric) => ({
+                    name:
+                      this.sanitizeString(activity.name) + '.' + metric.name,
+                    description: '',
+                    type: metric.type || '',
+                  })) || [],
+              });
+            });
+
+            return contracts;
+          }),
+      ),
+    ).then((contracts) => contracts.flat());
+
+    const metrics: MetricGQLSchema[] = [];
+    contracts.forEach((contract) => {
+      contract.qualAnalytics?.forEach((qualAnalytic) =>
+        metrics.push({
+          name: qualAnalytic.name || '',
+          type: (qualAnalytic.type as string) || 'string',
+          description: '',
+        }),
+      );
+      contract.quantAnalytics?.forEach((quantAnalytic) =>
+        metrics.push({
+          name: quantAnalytic.name || '',
+          type: (quantAnalytic.type as string) || 'string',
+          description: '',
+        }),
+      );
+    });
+
+    return metrics;
+  }
+
   async removeActivity(activityId: MongoId): Promise<void> {
     await this.dbService.removeActivity(activityId);
   }
@@ -214,5 +280,11 @@ export class IAPService implements IQuery, IMutation {
     }
 
     return client;
+  }
+
+  private sanitizeString(input: string): string {
+    const withUnderscores = input.replace(/\s+/g, '_');
+
+    return withUnderscores.replace(/[^A-Za-z0-9_]/g, '');
   }
 }
