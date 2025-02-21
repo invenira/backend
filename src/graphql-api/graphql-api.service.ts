@@ -11,6 +11,7 @@ import {
   IAP,
   IMutation,
   IQuery,
+  MetricGQLSchema,
   MongoId,
 } from '@invenira/schemas';
 import { IAPService } from '../iap/iap.service';
@@ -91,6 +92,14 @@ export class GraphqlApiService implements IQuery, IMutation {
 
   async getIAPs(): Promise<IAP[]> {
     return this.iapService.getIAPs();
+  }
+
+  async getActivityProviderRequiredFields(apId: MongoId): Promise<string[]> {
+    return this.iapService.getActivityProviderRequiredFields(apId);
+  }
+
+  async getIAPAvailableMetrics(iapId: MongoId): Promise<MetricGQLSchema[]> {
+    return this.iapService.getIAPAvailableMetrics(iapId);
   }
 
   async removeActivity(activityId: MongoId): Promise<void> {

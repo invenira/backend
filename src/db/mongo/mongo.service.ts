@@ -9,10 +9,12 @@ import {
   CreateIAP,
   Goal,
   IAP,
+  MetricGQLSchema,
   MongoId,
+  MongoIdScalar,
 } from '@invenira/schemas';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model, Types } from 'mongoose';
+import { Error, Model, Types } from 'mongoose';
 import { IAPEntity } from './entities/iap.entity';
 import { getCurrentUser } from '../../current-user';
 import { DbService } from '../db.service';
@@ -279,6 +281,16 @@ export class MongoService implements DbService {
   async getIAPs(): Promise<IAP[]> {
     this.logger.debug(`getIAPs()`);
     return this.iapModel.find().lean().exec();
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  getActivityProviderRequiredFields(_apId: MongoIdScalar): Promise<string[]> {
+    throw new Error('Not implemented');
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  getIAPAvailableMetrics(_iapId: MongoIdScalar): Promise<MetricGQLSchema[]> {
+    throw new Error('Not implemented');
   }
 
   async removeActivity(activityId: MongoId): Promise<void> {
