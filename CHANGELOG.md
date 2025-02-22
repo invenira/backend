@@ -1,3 +1,10 @@
+## [1.0.1](https://github.com/invenira/backend/compare/v1.0.0...v1.0.1) (2025-02-22)
+
+
+### Bug Fixes
+
+* CI ([8d78969](https://github.com/invenira/backend/commit/8d789697d2afcf8b3a2c6777b581867331f01648))
+
 # 1.0.0 (2025-02-22)
 
 
