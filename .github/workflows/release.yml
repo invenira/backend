@@ -25,9 +25,15 @@ jobs:
         with:
           ssh-private-key: ${{ secrets.RELEASE_PKEY }}
 
+      - uses: actions/setup-node@v4.2.0
+        with:
+          node-version: 22
+          cache: 'npm'
+
+      - run: npm ci
+
       - name: Create release and publish docker image
         run: npx semantic-release
         env:
           DOCKER_USERNAME: ${{ github.actor }}
           DOCKER_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
