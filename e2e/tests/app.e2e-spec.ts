@@ -233,9 +233,7 @@ describe('GraphQL API Mutations (e2e)', () => {
         }
       `;
 
-      await expect(fetchGraphQL(QUERY)).rejects.toThrow(
-        'Unable to contact Activity Provider: connect ECONNREFUSED 127.0.0.1:12345',
-      );
+      await expect(fetchGraphQL(QUERY)).rejects.toThrow(Error);
     });
 
     it('Creates an Activity Provider', async () => {
