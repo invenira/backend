@@ -5,6 +5,15 @@ import { MongoService } from './mongo.service';
 import { DB_SERVICE } from '../db.service';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { Connection } from 'mongoose';
+import { GoalEntity, GoalEntitySchema } from './entities/goal.entity';
+import {
+  ActivityProviderEntity,
+  ActivityProviderEntitySchema,
+} from './entities/activity-provider.entity';
+import {
+  ActivityEntity,
+  ActivityEntitySchema,
+} from './entities/activity.entity';
 
 const mongooseLogger = new Logger('Mongoose', { timestamp: true });
 
@@ -30,6 +39,52 @@ const mongooseLogger = new Logger('Mongoose', { timestamp: true });
       }),
       inject: [ConfigService],
     }),
+    MongooseModule.forFeatureAsync([
+      {
+        name: GoalEntity.name,
+        useFactory: () => {
+          const schema = GoalEntitySchema;
+
+          schema.post('save', (next: { _doc: object }) => {
+            mongooseLogger.debug(`Saving Goal: ${JSON.stringify(next._doc)}`);
+          });
+
+          return schema;
+        },
+      },
+    ]),
+    MongooseModule.forFeatureAsync([
+      {
+        name: ActivityProviderEntity.name,
+        useFactory: () => {
+          const schema = ActivityProviderEntitySchema;
+
+          schema.post('save', (next: { _doc: object }) => {
+            mongooseLogger.debug(
+              `Saving Activity Provider: ${JSON.stringify(next._doc)}`,
+            );
+          });
+
+          return schema;
+        },
+      },
+    ]),
+    MongooseModule.forFeatureAsync([
+      {
+        name: ActivityEntity.name,
+        useFactory: () => {
+          const schema = ActivityEntitySchema;
+
+          schema.post('save', (next: { _doc: object }) => {
+            mongooseLogger.debug(
+              `Saving Activity: ${JSON.stringify(next._doc)}`,
+            );
+          });
+
+          return schema;
+        },
+      },
+    ]),
     MongooseModule.forFeatureAsync([
       {
         name: IAPEntity.name,

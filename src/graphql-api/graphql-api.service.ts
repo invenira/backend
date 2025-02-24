@@ -21,43 +21,6 @@ import { getCurrentUser } from '../current-user';
 export class GraphqlApiService implements IQuery, IMutation {
   constructor(private readonly iapService: IAPService) {}
 
-  async createActivity(
-    apId: MongoId,
-    createActivity: CreateActivity,
-  ): Promise<Activity> {
-    createActivity.createdBy = getCurrentUser();
-    createActivity.updatedBy = getCurrentUser();
-    return this.iapService.createActivity(apId, createActivity);
-  }
-
-  async createActivityProvider(
-    iapId: MongoId,
-    createActivityProvider: CreateActivityProvider,
-  ): Promise<ActivityProvider> {
-    createActivityProvider.createdBy = getCurrentUser();
-    createActivityProvider.updatedBy = getCurrentUser();
-    return this.iapService.createActivityProvider(
-      iapId,
-      createActivityProvider,
-    );
-  }
-
-  async createGoal(iapId: MongoId, createGoal: CreateGoal): Promise<Goal> {
-    createGoal.createdBy = getCurrentUser();
-    createGoal.updatedBy = getCurrentUser();
-    return this.iapService.createGoal(iapId, createGoal);
-  }
-
-  async createIap(createIap: CreateIAP): Promise<IAP> {
-    createIap.createdBy = getCurrentUser();
-    createIap.updatedBy = getCurrentUser();
-    return this.iapService.createIap(createIap);
-  }
-
-  async deployIap(iapId: MongoId): Promise<void> {
-    await this.iapService.deployIap(iapId);
-  }
-
   async getActivities(): Promise<Activity[]> {
     return this.iapService.getActivities();
   }
@@ -71,7 +34,7 @@ export class GraphqlApiService implements IQuery, IMutation {
   }
 
   async getActivityProviderActivities(apId: MongoId): Promise<Activity[]> {
-    return this.getActivityProvider(apId).then((ap) => ap.activities);
+    return this.iapService.getActivityProviderActivities(apId);
   }
 
   async getActivityProviders(): Promise<ActivityProvider[]> {
@@ -102,19 +65,56 @@ export class GraphqlApiService implements IQuery, IMutation {
     return this.iapService.getIAPAvailableMetrics(iapId);
   }
 
-  async removeActivity(activityId: MongoId): Promise<void> {
-    await this.iapService.removeActivity(activityId);
+  async createActivityProvider(
+    createActivityProvider: CreateActivityProvider,
+  ): Promise<ActivityProvider> {
+    // TODO: Tech Debt, find another way to decouple this
+    createActivityProvider.createdBy = getCurrentUser();
+    createActivityProvider.updatedBy = getCurrentUser();
+    return this.iapService.createActivityProvider(createActivityProvider);
   }
 
   async removeActivityProvider(apId: MongoId): Promise<void> {
     await this.iapService.removeActivityProvider(apId);
   }
 
+  async createActivity(
+    iapId: MongoId,
+    createActivity: CreateActivity,
+  ): Promise<Activity> {
+    // TODO: Tech Debt, find another way to decouple this
+    createActivity.createdBy = getCurrentUser();
+    createActivity.updatedBy = getCurrentUser();
+    return this.iapService.createActivity(iapId, createActivity);
+  }
+
+  async removeActivity(activityId: MongoId): Promise<void> {
+    await this.iapService.removeActivity(activityId);
+  }
+
+  async createGoal(iapId: MongoId, createGoal: CreateGoal): Promise<Goal> {
+    // TODO: Tech Debt, find another way to decouple this
+    createGoal.createdBy = getCurrentUser();
+    createGoal.updatedBy = getCurrentUser();
+    return this.iapService.createGoal(iapId, createGoal);
+  }
+
   async removeGoal(goalId: MongoId): Promise<void> {
     await this.iapService.removeGoal(goalId);
   }
 
+  async createIap(createIap: CreateIAP): Promise<IAP> {
+    // TODO: Tech Debt, find another way to decouple this
+    createIap.createdBy = getCurrentUser();
+    createIap.updatedBy = getCurrentUser();
+    return this.iapService.createIap(createIap);
+  }
+
   async removeIap(iapId: MongoId): Promise<void> {
     await this.iapService.removeIap(iapId);
+  }
+
+  async deployIap(iapId: MongoId): Promise<void> {
+    await this.iapService.deployIap(iapId);
   }
 }

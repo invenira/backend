@@ -25,119 +25,6 @@ export class IAPService implements IQuery, IMutation {
 
   constructor(@Inject(DB_SERVICE) private readonly dbService: DbService) {}
 
-  async createActivity(
-    apId: MongoId,
-    createActivity: CreateActivity,
-  ): Promise<Activity> {
-    const ap = await this.getActivityProvider(apId);
-
-    if (
-      ap.activities.some(
-        (activity) =>
-          activity.name === createActivity.name ||
-          activity.description === createActivity.description,
-      )
-    ) {
-      throw new BadRequestException('Activity already exists');
-    }
-
-    const atSchema = await this.getApClient(ap.url)
-      .getConfigParameters()
-      .then((parameters) => createDynamicSchema(parameters))
-      .catch((err: { message: string }) => {
-        throw new BadRequestException(
-          `Unable to contact Activity Provider: ${err.message}`,
-        );
-      });
-
-    try {
-      atSchema.parse(createActivity.parameters);
-    } catch (e: unknown) {
-      throw new BadRequestException(
-        `Activity parameter validation failed: ${(
-          e as { errors: { message: string }[] }
-        ).errors
-          .map((e: { message: string }) => e.message)
-          .join('; ')}`,
-      );
-    }
-
-    return this.dbService.createActivity(apId, createActivity);
-  }
-
-  async createActivityProvider(
-    iapId: MongoId,
-    createActivityProvider: CreateActivityProvider,
-  ): Promise<ActivityProvider> {
-    const iap = await this.getIAP(iapId);
-
-    try {
-      await this.getApClient(createActivityProvider.url).getConfigParameters();
-    } catch (error) {
-      throw new BadRequestException(
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-        `Unable to contact Activity Provider: ${error.message}`,
-      );
-    }
-
-    if (
-      iap.activityProviders.some(
-        (provider) =>
-          provider.name === createActivityProvider.name ||
-          provider.url === createActivityProvider.url,
-      )
-    ) {
-      throw new BadRequestException('Activity Provider already exists');
-    }
-
-    return this.dbService.createActivityProvider(iapId, createActivityProvider);
-  }
-
-  async createGoal(iapId: MongoId, createGoal: CreateGoal): Promise<Goal> {
-    const iap = await this.getIAP(iapId);
-
-    if (
-      iap.goals.some(
-        (provider) =>
-          provider.name === createGoal.name ||
-          provider.formula === createGoal.formula,
-      )
-    ) {
-      throw new BadRequestException('Goal already exists');
-    }
-
-    // TODO: Contact middleware to validate Goal Formula
-
-    return this.dbService.createGoal(iapId, createGoal);
-  }
-
-  async createIap(createIap: CreateIAP): Promise<IAP> {
-    return this.dbService.createIap(createIap);
-  }
-
-  async deployIap(iapId: MongoId): Promise<void> {
-    const iap = await this.getIAP(iapId);
-
-    for (const ap of iap.activityProviders) {
-      const apClient = this.getApClient(ap.url);
-
-      for (const activity of ap.activities) {
-        await apClient
-          .deploy(
-            { parameters: activity.parameters },
-            { params: { id: activity._id.toString() } },
-          )
-          .catch((err: { message: string }) => {
-            throw new BadRequestException(
-              `Unable to contact Activity Provider: ${err.message}`,
-            );
-          });
-      }
-    }
-
-    await this.dbService.deployIap(iapId);
-  }
-
   async getActivities(): Promise<Activity[]> {
     return this.dbService.getActivities();
   }
@@ -151,7 +38,7 @@ export class IAPService implements IQuery, IMutation {
   }
 
   async getActivityProviderActivities(apId: MongoId): Promise<Activity[]> {
-    return this.getActivityProvider(apId).then((ap) => ap.activities);
+    return this.dbService.getActivityProviderActivities(apId);
   }
 
   async getActivityProviders(): Promise<ActivityProvider[]> {
@@ -194,81 +81,126 @@ export class IAPService implements IQuery, IMutation {
 
   async getIAPAvailableMetrics(iapId: MongoId): Promise<MetricGQLSchema[]> {
     const iap = await this.getIAP(iapId);
-    const contracts = await Promise.all(
-      iap.activityProviders.map((ap) =>
-        this.getApClient(ap.url)
-          .getAnalyticsContract()
-          .then((contract) => {
-            const contracts: {
-              qualAnalytics: MetricGQLSchema[];
-              quantAnalytics: MetricGQLSchema[];
-            }[] = [];
 
-            ap.activities.forEach((activity) => {
-              contracts.push({
-                qualAnalytics:
-                  contract.qualAnalytics?.map((metric) => ({
-                    name:
-                      this.sanitizeString(activity.name) + '.' + metric.name,
-                    description: '',
-                    type: metric.type || '',
-                  })) || [],
-                quantAnalytics:
-                  contract.quantAnalytics?.map((metric) => ({
-                    name:
-                      this.sanitizeString(activity.name) + '.' + metric.name,
-                    description: '',
-                    type: metric.type || '',
-                  })) || [],
-              });
-            });
+    return await Promise.all(
+      iap.activityIds.map(async (activityId) => {
+        const activity = await this.getActivity(activityId);
 
-            return contracts;
-          }),
-      ),
-    ).then((contracts) => contracts.flat());
+        const ap = await this.getActivityProvider(activity.activityProviderId);
 
-    const metrics: MetricGQLSchema[] = [];
-    contracts.forEach((contract) => {
-      contract.qualAnalytics?.forEach((qualAnalytic) =>
-        metrics.push({
-          name: qualAnalytic.name || '',
-          type: (qualAnalytic.type as string) || 'string',
-          description: '',
-        }),
+        // TODO: Buffer response, more than one activity might use the same AP
+        const contract = await this.getApClient(ap.url).getAnalyticsContract();
+
+        return [
+          contract.qualAnalytics?.map((metric) => ({
+            name: this.sanitizeString(activity.name) + '.' + metric.name,
+            description: '',
+            type: metric.type || '',
+          })) || [],
+          contract.quantAnalytics?.map((metric) => ({
+            name: this.sanitizeString(activity.name) + '.' + metric.name,
+            description: '',
+            type: metric.type || '',
+          })) || [],
+        ];
+      }),
+    ).then((contracts) => contracts.flat(2));
+  }
+
+  async createActivityProvider(
+    createActivityProvider: CreateActivityProvider,
+  ): Promise<ActivityProvider> {
+    try {
+      await this.getApClient(createActivityProvider.url).getConfigParameters();
+    } catch (error) {
+      throw new BadRequestException(
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+        `Unable to contact Activity Provider: ${error.message}`,
       );
-      contract.quantAnalytics?.forEach((quantAnalytic) =>
-        metrics.push({
-          name: quantAnalytic.name || '',
-          type: (quantAnalytic.type as string) || 'string',
-          description: '',
-        }),
-      );
-    });
+    }
 
-    return metrics;
+    return this.dbService.createActivityProvider(createActivityProvider);
+  }
+
+  async removeActivityProvider(apId: MongoId): Promise<void> {
+    await this.dbService.removeActivityProvider(apId);
+  }
+
+  async createActivity(
+    iapId: MongoId,
+    createActivity: CreateActivity,
+  ): Promise<Activity> {
+    const ap = await this.getActivityProvider(
+      createActivity.activityProviderId,
+    );
+
+    const atSchema = await this.getApClient(ap.url)
+      .getConfigParameters()
+      .then((parameters) => createDynamicSchema(parameters))
+      .catch((err: { message: string }) => {
+        throw new BadRequestException(
+          `Unable to contact Activity Provider: ${err.message}`,
+        );
+      });
+
+    try {
+      atSchema.parse(createActivity.parameters);
+    } catch (e: unknown) {
+      throw new BadRequestException(
+        `Activity parameter validation failed: ${(
+          e as { errors: { message: string }[] }
+        ).errors
+          .map((e: { message: string }) => e.message)
+          .join('; ')}`,
+      );
+    }
+
+    return this.dbService.createActivity(iapId, createActivity);
   }
 
   async removeActivity(activityId: MongoId): Promise<void> {
     await this.dbService.removeActivity(activityId);
   }
 
-  async removeActivityProvider(apId: MongoId): Promise<void> {
-    const ap = await this.getActivityProvider(apId);
-
-    if (ap.activities.length > 0) {
-      throw new BadRequestException('Activity Provider contains Activities');
-    }
-
-    await this.dbService.removeActivityProvider(apId);
+  async createGoal(iapId: MongoId, createGoal: CreateGoal): Promise<Goal> {
+    return this.dbService.createGoal(iapId, createGoal);
   }
 
   async removeGoal(goalId: MongoId): Promise<void> {
     await this.dbService.removeGoal(goalId);
   }
 
+  async createIap(createIap: CreateIAP): Promise<IAP> {
+    return this.dbService.createIap(createIap);
+  }
+
   async removeIap(iapId: MongoId): Promise<void> {
     await this.dbService.removeIap(iapId);
+  }
+
+  async deployIap(iapId: MongoId): Promise<void> {
+    const iap = await this.getIAP(iapId);
+
+    for (const activityId of iap.activityIds) {
+      const activity = await this.getActivity(activityId);
+      const ap = await this.getActivityProvider(activity.activityProviderId);
+
+      await this.getApClient(ap.url)
+        .deploy(
+          { parameters: activity.parameters },
+          { params: { id: activity._id.toString() } },
+        )
+        .catch((err: { message: string }) => {
+          throw new BadRequestException(
+            `Unable to contact Activity Provider: ${err.message}`,
+          );
+        });
+      // TODO: add an endpoint to AP API to "un-deploy" an activity in case
+      //   something goes wrong and we need to "un-deploy" the already deployed
+      //   ones.
+    }
+
+    await this.dbService.deployIap(iapId);
   }
 
   private getApClient(url: string): typeof ActivityProviderAPI {
