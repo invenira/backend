@@ -33,6 +33,38 @@ module.exports = async function () {
     });
   });
 
+  process.env.DUMMY_AP_PID = await new Promise((resolve, reject) => {
+    console.log('Starting Dummy Activity Provider\n');
+    const npmi = spawn('npm', ['install'], {
+      cwd: './e2e/generated-dummy-ap/',
+      shell: true,
+      stdio: 'pipe',
+    });
+
+    npmi.on('close', () => {
+      const ap = spawn('node', ['index.js'], {
+        cwd: './e2e/generated-dummy-ap/',
+        shell: false,
+        stdio: 'pipe',
+      });
+
+      ap.stdout.on('data', (data) => {
+        if (data.toString().includes('Swagger-ui is available on')) {
+          console.log('Dummy Activity Provider started\n');
+          resolve(ap.pid?.toString() || '');
+        }
+      });
+
+      ap.on('error', (err) => {
+        reject(`Dummy Activity Provider error: ${err}`);
+      });
+    });
+
+    npmi.on('error', (err) => {
+      reject(`Dummy Activity Provider error: ${err}`);
+    });
+  });
+
   await new Promise<void>((resolve, reject) => {
     console.log('Building Backend\n');
     const docker = spawn('npm', ['run', 'build'], {

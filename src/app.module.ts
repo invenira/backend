@@ -1,6 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
-import { GraphqlApiModule } from './graphql-api/graphql-api.module';
+import { GraphqlApiModule } from './graphql-api';
 import { GraphQLModule } from '@nestjs/graphql';
 import { ApolloDriver, ApolloDriverConfig } from '@nestjs/apollo';
 import {
@@ -10,7 +10,7 @@ import {
   VoidScalar,
 } from '@invenira/schemas';
 import { ApolloServerPluginLandingPageLocalDefault } from '@apollo/server/plugin/landingPage/default';
-import { AuthModule } from './auth/auth.module';
+import { AuthModule } from './auth';
 
 @Module({
   imports: [

@@ -19,12 +19,12 @@
     "test:watch": "jest --watch",
     "test:cov": "jest --coverage",
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
-    "test:e2e": "jest --config ./e2e/jest-e2e.json"
+    "test:e2e": "jest --config ./e2e/jest-e2e.json --runInBand"
   },
   "dependencies": {
     "@apollo/server": "^4.11.3",
     "@as-integrations/fastify": "^2.1.1",
-    "@invenira/schemas": "^0.1.2",
+    "@invenira/schemas": "^1.0.3",
     "@nestjs/apollo": "^13.0.2",
     "@nestjs/common": "^11.0.1",
     "@nestjs/config": "^4.0.0",
@@ -64,6 +64,7 @@
     "@types/passport-jwt": "^4.0.1",
     "@types/supertest": "^6.0.2",
     "axios": "^1.7.9",
+    "conventional-changelog-conventionalcommits": "^8.0.0",
     "eslint": "^9.21.0",
     "eslint-config-prettier": "^10.0.1",
     "eslint-plugin-prettier": "^5.2.2",
@@ -97,6 +98,21 @@
       "**/*.(t|j)s"
     ],
     "coverageDirectory": "../coverage",
-    "testEnvironment": "node"
+    "testEnvironment": "node",
+    "coveragePathIgnorePatterns": [
+      ".*index\\.ts",
+      ".*\\.module\\.ts",
+      ".*\\.entity\\.ts",
+      ".*/src/auth/.*",
+      "main.ts"
+    ],
+    "coverageThreshold": {
+      "global": {
+        "branches": 90,
+        "functions": 90,
+        "lines": 90,
+        "statements": 90
+      }
+    }
   }
 }

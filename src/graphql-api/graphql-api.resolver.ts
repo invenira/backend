@@ -32,58 +32,6 @@ import { ZodValidationPipe } from '../pipes';
 export class GraphqlApiResolver implements IQuery, IMutation {
   constructor(private readonly graphqlApiService: GraphqlApiService) {}
 
-  @Mutation('createActivity')
-  async createActivity(
-    @Args('apId', new ZodValidationPipe(MongoIdSchema))
-    apId: MongoId,
-    @Args('createActivityInput', new ZodValidationPipe(CreateActivitySchema))
-    createActivity: CreateActivity,
-  ): Promise<Activity> {
-    return this.graphqlApiService.createActivity(apId, createActivity);
-  }
-
-  @Mutation('createActivityProvider')
-  async createActivityProvider(
-    @Args('iapId', new ZodValidationPipe(MongoIdSchema))
-    iapId: MongoId,
-    @Args(
-      'createActivityProviderInput',
-      new ZodValidationPipe(CreateActivityProviderSchema),
-    )
-    createActivityProvider: CreateActivityProvider,
-  ): Promise<ActivityProvider> {
-    return this.graphqlApiService.createActivityProvider(
-      iapId,
-      createActivityProvider,
-    );
-  }
-
-  @Mutation('createGoal')
-  async createGoal(
-    @Args('iapId', new ZodValidationPipe(MongoIdSchema))
-    iapId: MongoId,
-    @Args('createGoalInput', new ZodValidationPipe(CreateGoalSchema))
-    createGoal: CreateGoal,
-  ): Promise<Goal> {
-    return this.graphqlApiService.createGoal(iapId, createGoal);
-  }
-
-  @Mutation('createIap')
-  async createIap(
-    @Args('createIapInput', new ZodValidationPipe(CreateIAPSchema))
-    createIap: CreateIAP,
-  ): Promise<IAP> {
-    return this.graphqlApiService.createIap(createIap);
-  }
-
-  @Mutation('deployIap')
-  async deployIap(
-    @Args('iapId', new ZodValidationPipe(MongoIdSchema))
-    iapId: MongoId,
-  ): Promise<void> {
-    return this.graphqlApiService.deployIap(iapId);
-  }
-
   @Query('getActivities')
   async getActivities(): Promise<Activity[]> {
     return this.graphqlApiService.getActivities();
@@ -163,12 +111,17 @@ export class GraphqlApiResolver implements IQuery, IMutation {
     return this.graphqlApiService.getIAPAvailableMetrics(iapId);
   }
 
-  @Mutation('removeActivity')
-  async removeActivity(
-    @Args('activityId', new ZodValidationPipe(MongoIdSchema))
-    activityId: MongoId,
-  ): Promise<void> {
-    return this.graphqlApiService.removeActivity(activityId);
+  @Mutation('createActivityProvider')
+  async createActivityProvider(
+    @Args(
+      'createActivityProviderInput',
+      new ZodValidationPipe(CreateActivityProviderSchema),
+    )
+    createActivityProvider: CreateActivityProvider,
+  ): Promise<ActivityProvider> {
+    return this.graphqlApiService.createActivityProvider(
+      createActivityProvider,
+    );
   }
 
   @Mutation('removeActivityProvider')
@@ -179,6 +132,34 @@ export class GraphqlApiResolver implements IQuery, IMutation {
     return this.graphqlApiService.removeActivityProvider(apId);
   }
 
+  @Mutation('createActivity')
+  async createActivity(
+    @Args('iapId', new ZodValidationPipe(MongoIdSchema))
+    iapId: MongoId,
+    @Args('createActivityInput', new ZodValidationPipe(CreateActivitySchema))
+    createActivity: CreateActivity,
+  ): Promise<Activity> {
+    return this.graphqlApiService.createActivity(iapId, createActivity);
+  }
+
+  @Mutation('removeActivity')
+  async removeActivity(
+    @Args('activityId', new ZodValidationPipe(MongoIdSchema))
+    activityId: MongoId,
+  ): Promise<void> {
+    return this.graphqlApiService.removeActivity(activityId);
+  }
+
+  @Mutation('createGoal')
+  async createGoal(
+    @Args('iapId', new ZodValidationPipe(MongoIdSchema))
+    iapId: MongoId,
+    @Args('createGoalInput', new ZodValidationPipe(CreateGoalSchema))
+    createGoal: CreateGoal,
+  ): Promise<Goal> {
+    return this.graphqlApiService.createGoal(iapId, createGoal);
+  }
+
   @Mutation('removeGoal')
   async removeGoal(
     @Args('goalId', new ZodValidationPipe(MongoIdSchema))
@@ -187,11 +168,27 @@ export class GraphqlApiResolver implements IQuery, IMutation {
     return this.graphqlApiService.removeGoal(goalId);
   }
 
+  @Mutation('createIap')
+  async createIap(
+    @Args('createIapInput', new ZodValidationPipe(CreateIAPSchema))
+    createIap: CreateIAP,
+  ): Promise<IAP> {
+    return this.graphqlApiService.createIap(createIap);
+  }
+
   @Mutation('removeIap')
   async removeIap(
     @Args('iapId', new ZodValidationPipe(MongoIdSchema))
     iapId: MongoId,
   ): Promise<void> {
     return this.graphqlApiService.removeIap(iapId);
+  }
+
+  @Mutation('deployIap')
+  async deployIap(
+    @Args('iapId', new ZodValidationPipe(MongoIdSchema))
+    iapId: MongoId,
+  ): Promise<void> {
+    return this.graphqlApiService.deployIap(iapId);
   }
 }

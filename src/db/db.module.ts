@@ -1,5 +1,5 @@
 import { DynamicModule, Module } from '@nestjs/common';
-import { MongoModule } from './mongo/mongo.module';
+import { MongoModule } from './mongo';
 
 @Module({})
 export class DbModule {

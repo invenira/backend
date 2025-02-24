@@ -1,180 +1,278 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
 import {
   Activity,
   ActivityProvider,
-  ConfigInterface,
   CreateActivity,
   CreateActivityProvider,
   CreateGoal,
   CreateIAP,
   Goal,
   IAP,
-  MetricGQLSchema,
   MongoId,
-  MongoIdScalar,
 } from '@invenira/schemas';
-import { InjectModel } from '@nestjs/mongoose';
-import { Error, Model, Types } from 'mongoose';
+import { InjectConnection, InjectModel } from '@nestjs/mongoose';
+import { Connection, Model } from 'mongoose';
 import { IAPEntity } from './entities/iap.entity';
 import { getCurrentUser } from '../../current-user';
 import { DbService } from '../db.service';
+import { GoalEntity } from './entities/goal.entity';
+import { ActivityProviderEntity } from './entities/activity-provider.entity';
+import { ActivityEntity } from './entities/activity.entity';
+import { WithTransaction } from './with-transaction';
 
 @Injectable()
 export class MongoService implements DbService {
   private readonly logger = new Logger(MongoService.name);
 
   constructor(
+    @InjectModel(GoalEntity.name)
+    private readonly goalModel: Model<GoalEntity>,
+    @InjectModel(ActivityProviderEntity.name)
+    private readonly activityProviderModel: Model<ActivityProviderEntity>,
+    @InjectModel(ActivityEntity.name)
+    private readonly activityModel: Model<ActivityEntity>,
     @InjectModel(IAPEntity.name)
     private readonly iapModel: Model<IAPEntity>,
-  ) {}
+    @InjectConnection()
+    private connection: Connection,
+  ) {
+    this.connection.modelNames().forEach((modelName) => {
+      this.logger.log(`Model loaded: ${modelName}`);
+    });
+  }
 
+  // TODO: are transactions required for reading?
+  async getActivities(): Promise<Activity[]> {
+    this.logger.debug(`getActivities()`);
+    return this.activityModel.find().lean().exec();
+  }
+
+  // TODO: are transactions required for reading?
+  async getActivity(activityId: MongoId): Promise<Activity> {
+    this.logger.debug(`getActivity(activityId:${activityId.toString()})`);
+    const activity = await this.activityModel
+      .findOne({ _id: activityId })
+      .lean()
+      .exec();
+
+    if (!activity) {
+      throw new NotFoundException(
+        `Activity with id ${activityId.toString()} not found.`,
+      );
+    }
+
+    return activity;
+  }
+
+  // TODO: are transactions required for reading?
+  async getActivityProvider(apId: MongoId): Promise<ActivityProvider> {
+    this.logger.debug(`getActivityProvider(apId:${apId.toString()})`);
+    const activityProvider = await this.activityProviderModel
+      .findOne({ _id: apId })
+      .lean()
+      .exec();
+
+    if (!activityProvider) {
+      throw new NotFoundException(
+        `Activity Provider with id ${apId.toString()} not found.`,
+      );
+    }
+
+    return activityProvider;
+  }
+
+  // TODO: are transactions required for reading?
+  async getActivityProviderActivities(apId: MongoId): Promise<Activity[]> {
+    this.logger.debug(`getActivityProviderActivities(apId:${apId.toString()})`);
+
+    await this.getActivityProvider(apId);
+
+    return this.activityModel.find({ activityProviderId: apId }).lean().exec();
+  }
+
+  // TODO: are transactions required for reading?
+  async getActivityProviders(): Promise<ActivityProvider[]> {
+    this.logger.debug(`getActivityProviders()`);
+    return this.activityProviderModel.find().lean().exec();
+  }
+
+  // TODO: are transactions required for reading?
+  async getIAP(iapId: MongoId): Promise<IAP> {
+    this.logger.debug(`getIAP(apId:${iapId.toString()})`);
+    const iap = await this.iapModel.findOne({ _id: iapId }).lean().exec();
+
+    if (!iap) {
+      throw new NotFoundException(
+        `Inventive Activity Plan with id ${iapId.toString()} not found.`,
+      );
+    }
+
+    return iap;
+  }
+
+  // TODO: are transactions required for reading?
+  async getIAPs(): Promise<IAP[]> {
+    this.logger.debug(`getIAPs()`);
+    return this.iapModel.find().lean().exec();
+  }
+
+  @WithTransaction()
+  async createActivityProvider(
+    createActivityProvider: CreateActivityProvider,
+  ): Promise<ActivityProvider> {
+    this.logger.debug(`Saving Activity Provider`, createActivityProvider);
+    return this.activityProviderModel
+      .create(createActivityProvider)
+      .then((activityProvider) => activityProvider.toObject());
+  }
+
+  @WithTransaction()
+  async removeActivityProvider(apId: MongoId): Promise<void> {
+    this.logger.debug(`removeActivityProvider(apId:${apId.toString()})`);
+
+    const activities = await this.getActivityProviderActivities(apId);
+
+    if (activities.length > 0) {
+      throw new BadRequestException(
+        `Activity Provider with id ${apId.toString()} contains Activities`,
+      );
+    }
+
+    await this.activityProviderModel
+      .findByIdAndDelete({ _id: apId })
+      .lean()
+      .exec();
+  }
+
+  @WithTransaction()
   async createActivity(
-    apId: MongoId,
+    iapId: MongoId,
     createActivity: CreateActivity,
   ): Promise<Activity> {
     this.logger.debug(
-      `Saving Activity within Activity Provider with id ${apId.toString()}`,
+      `Attempt to create Activity with Activity Provider id ` +
+        `${createActivity.activityProviderId.toString()} within IAP ` +
+        `id ${iapId.toString()}`,
       createActivity,
     );
 
-    const activityId = new Types.ObjectId();
+    const activity = await this.activityModel.create(createActivity);
 
-    return this.iapModel
-      .findOneAndUpdate(
-        { 'activityProviders._id': apId },
-        {
-          updatedBy: createActivity.createdBy,
-          'activityProviders.$.updatedBy': createActivity.createdBy,
-          $push: {
-            'activityProviders.$.activities': {
-              _id: activityId,
-              ...createActivity,
-            },
-          },
+    await this.iapModel.updateOne(
+      { _id: iapId.toString() },
+      {
+        // TODO: Tech Debt, find another way to decouple this
+        updatedBy: getCurrentUser(),
+        $push: {
+          activityIds: activity.id,
         },
-        {
-          new: true,
-        },
-      )
-      .lean()
-      .exec()
-      .then((result) => {
-        if (!result) {
-          throw new NotFoundException(
-            `No Activity Provider found with id ${apId.toString()}`,
-          );
-        }
-
-        const ap = result.activityProviders.find((ap) =>
-          ap.activities.some(
-            (act) => act._id.toString() === activityId.toString(),
-          ),
-        );
-
-        if (!ap) {
-          throw new NotFoundException(
-            `Activity with id ${activityId.toString()} not found`,
-          );
-        }
-
-        return ap.activities.find(
-          (act) => act._id.toString() === activityId.toString(),
-        ) as Activity;
-      });
-  }
-
-  async createActivityProvider(
-    iapId: MongoId,
-    createActivityProvider: CreateActivityProvider,
-  ): Promise<ActivityProvider> {
-    this.logger.debug(
-      `Saving Activity Provider within IAP with id ${iapId.toString()}`,
-      createActivityProvider,
+      },
     );
 
-    const newApId = new Types.ObjectId();
-
-    return this.iapModel
-      .findOneAndUpdate(
-        { _id: iapId },
-        {
-          updatedBy: createActivityProvider.createdBy,
-          $push: {
-            activityProviders: {
-              _id: newApId,
-              ...createActivityProvider,
-            },
-          },
-        },
-        {
-          new: true,
-        },
-      )
-      .select({
-        activityProviders: { $elemMatch: { _id: newApId } },
-      })
-      .lean()
-      .exec()
-      .then((result) => {
-        if (!result) {
-          throw new NotFoundException(
-            `No Inventive Activity Plan found with id ${iapId.toString()}`,
-          );
-        }
-
-        const [addedActivityProviders] = result.activityProviders;
-
-        return addedActivityProviders;
-      });
+    return activity.toObject();
   }
 
+  @WithTransaction()
+  async removeActivity(activityId: MongoId): Promise<void> {
+    this.logger.debug(`removeActivity(activityId:${activityId.toString()})`);
+
+    const activity = await this.activityModel
+      .findByIdAndDelete({ _id: activityId.toString() })
+      .exec();
+
+    await this.iapModel.updateOne(
+      { activityIds: activityId },
+      {
+        // TODO: Tech Debt, find another way to decouple this
+        updatedBy: getCurrentUser(),
+        pull: {
+          activityIds: activityId,
+        },
+      },
+    );
+
+    if (!activity) {
+      throw new NotFoundException(
+        `Activity with id ${activityId.toString()} not found.`,
+      );
+    }
+  }
+
+  @WithTransaction()
   async createGoal(iapId: MongoId, createGoal: CreateGoal): Promise<Goal> {
     this.logger.debug(
       `Saving Goal within IAP with id ${iapId.toString()}`,
       createGoal,
     );
 
-    const newGoalId = new Types.ObjectId();
+    await this.getIAP(iapId);
 
-    return this.iapModel
-      .findOneAndUpdate(
-        { _id: iapId },
-        {
-          updatedBy: createGoal.createdBy,
-          $push: {
-            goals: {
-              _id: newGoalId,
-              ...createGoal,
-            },
-          },
+    const goal = await this.goalModel
+      .create(createGoal)
+      .then((goal) => goal.toObject());
+
+    await this.iapModel.updateOne(
+      { _id: iapId.toString() },
+      {
+        // TODO: Tech Debt, find another way to decouple this
+        updatedBy: getCurrentUser(),
+        $push: {
+          goalIds: goal.id,
         },
-        {
-          new: true,
-        },
-      )
-      .select({
-        goals: { $elemMatch: { _id: newGoalId } },
-      })
-      .lean()
-      .exec()
-      .then((result) => {
-        if (!result) {
-          throw new NotFoundException(
-            `No Inventive Activity Plan found with id ${iapId.toString()}`,
-          );
-        }
+      },
+    );
 
-        const [addedGoal] = result.goals;
-
-        return addedGoal;
-      });
+    return goal;
   }
 
+  @WithTransaction()
+  async removeGoal(goalId: MongoId): Promise<void> {
+    this.logger.debug(`removeGoal(goalId:${goalId.toString()})`);
+
+    const goal = await this.goalModel
+      .findByIdAndDelete({ _id: goalId.toString() })
+      .exec();
+
+    if (!goal) {
+      throw new NotFoundException(
+        `Goal with id ${goalId.toString()} not found.`,
+      );
+    }
+
+    await this.iapModel.findOneAndUpdate(
+      { goalIds: goalId },
+      {
+        // TODO: Tech Debt, find another way to decouple this
+        updatedBy: getCurrentUser(),
+        $pull: {
+          goalIds: goalId,
+        },
+      },
+    );
+  }
+
+  @WithTransaction()
   async createIap(createIap: CreateIAP): Promise<IAP> {
     this.logger.debug(`Creating IAP`, createIap);
     return this.iapModel.create(createIap).then((iap) => iap.toObject());
   }
 
+  @WithTransaction()
+  async removeIap(iapId: MongoId): Promise<void> {
+    this.logger.debug(`removeIap(iapId:${iapId.toString()})`);
+    const iap = await this.getIAP(iapId);
+
+    await this.goalModel.deleteMany({ _id: { $in: iap.goalIds } });
+    await this.activityModel.deleteMany({ _id: { $in: iap.activityIds } });
+    await this.iapModel.findByIdAndDelete({ _id: iapId });
+  }
+
+  @WithTransaction()
   async deployIap(iapId: MongoId): Promise<void> {
     this.logger.debug(`Deploying IAP with id ${iapId.toString()}`);
 
@@ -186,187 +284,15 @@ export class MongoService implements DbService {
       );
     }
 
+    if (iap.isDeployed) {
+      throw new BadRequestException(
+        `IAP with id ${iapId.toString()} is already deployed`,
+      );
+    }
+
     // TODO: Tech Debt, find another way to decouple this
     iap.updatedBy = getCurrentUser() || '';
     iap.isDeployed = true;
     await iap.save();
-  }
-
-  async getActivities(): Promise<Activity[]> {
-    this.logger.debug(`getActivities()`);
-    return this.iapModel.aggregate([
-      { $unwind: '$activityProviders' },
-      { $unwind: '$activityProviders.activities' },
-      { $replaceRoot: { newRoot: '$activityProviders.activities' } },
-    ]);
-  }
-
-  async getActivity(activityId: MongoId): Promise<Activity> {
-    this.logger.debug(`getActivity(activityId:${activityId.toString()})`);
-    return this.iapModel
-      .aggregate([
-        { $unwind: '$activityProviders' },
-        { $unwind: '$activityProviders.activities' },
-        { $match: { 'activityProviders.activities._id': activityId } },
-        { $replaceRoot: { newRoot: '$activityProviders.activities' } },
-        { $limit: 1 },
-      ])
-      .then((activities) => {
-        if (activities.length === 0) {
-          throw new NotFoundException(
-            `No Activity found with id: ${activityId.toString()}.`,
-          );
-        }
-
-        return activities[0] as Activity;
-      });
-  }
-
-  async getActivityProvider(apId: MongoId): Promise<ActivityProvider> {
-    this.logger.debug(`getActivityProvider(apId:${apId.toString()})`);
-    return this.iapModel
-      .aggregate([
-        { $unwind: '$activityProviders' },
-        { $match: { 'activityProviders._id': apId } },
-        { $replaceRoot: { newRoot: '$activityProviders' } },
-        { $limit: 1 },
-      ])
-      .then((activities) => {
-        if (activities.length === 0) {
-          throw new NotFoundException(
-            `No Activity Provider found with id: ${apId.toString()}.`,
-          );
-        }
-
-        return activities[0] as ActivityProvider;
-      });
-  }
-
-  async getActivityProviderActivities(apId: MongoId): Promise<Activity[]> {
-    this.logger.debug(`getActivityProviderActivities(apId:${apId.toString()})`);
-    return this.getActivityProvider(apId).then((ap) => ap.activities);
-  }
-
-  async getActivityProviders(): Promise<ActivityProvider[]> {
-    this.logger.debug(`getActivityProviders()`);
-    return this.iapModel.aggregate([
-      { $unwind: '$activityProviders' },
-      { $replaceRoot: { newRoot: '$activityProviders' } },
-    ]);
-  }
-
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  getConfigurationInterfaceUrl(_apId: MongoId): Promise<ConfigInterface> {
-    throw new Error('Not implemented');
-  }
-
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  getConfigurationParameters(_apId: MongoId): Promise<string[]> {
-    throw new Error('Not implemented');
-  }
-
-  async getIAP(iapId: MongoId): Promise<IAP> {
-    this.logger.debug(`getIAP(iapId:${iapId.toString()})`);
-    const iap = await this.iapModel.findOne({ _id: iapId }).lean().exec();
-
-    if (!iap) {
-      throw new NotFoundException(
-        `No Inventive Activity Plan found with id: ${iapId.toString()}.`,
-      );
-    }
-
-    return iap;
-  }
-
-  async getIAPs(): Promise<IAP[]> {
-    this.logger.debug(`getIAPs()`);
-    return this.iapModel.find().lean().exec();
-  }
-
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  getActivityProviderRequiredFields(_apId: MongoIdScalar): Promise<string[]> {
-    throw new Error('Not implemented');
-  }
-
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  getIAPAvailableMetrics(_iapId: MongoIdScalar): Promise<MetricGQLSchema[]> {
-    throw new Error('Not implemented');
-  }
-
-  async removeActivity(activityId: MongoId): Promise<void> {
-    this.logger.debug(`removeActivity(activityId:${activityId.toString()})`);
-    // TODO: Tech Debt, find another way to decouple this
-    const user = getCurrentUser();
-
-    const result = await this.iapModel
-      .updateOne(
-        { 'activityProviders.activities._id': activityId },
-        {
-          updatedBy: user,
-          $set: { 'activityProviders.$[provider].updatedBy': user },
-          $pull: {
-            'activityProviders.$[provider].activities': { _id: activityId },
-          },
-        },
-        {
-          arrayFilters: [{ 'provider.activities._id': activityId }],
-        },
-      )
-      .exec();
-
-    if (result.modifiedCount === 0) {
-      throw new NotFoundException(
-        `No Activity found with id: ${activityId.toString()}.`,
-      );
-    }
-  }
-
-  async removeActivityProvider(apId: MongoId): Promise<void> {
-    this.logger.debug(`removeActivityProvider(apId:${apId.toString()})`);
-    // TODO: Tech Debt, find another way to decouple this
-    const user = getCurrentUser();
-
-    await this.iapModel
-      .updateOne(
-        { 'activityProviders._id': apId },
-        {
-          updatedBy: user,
-          $pull: { activityProviders: { _id: apId } },
-        },
-      )
-      .exec();
-  }
-
-  async removeGoal(goalId: MongoId): Promise<void> {
-    this.logger.debug(`removeGoal(goalId:${goalId.toString()})`);
-    // TODO: Tech Debt, find another way to decouple this
-    const user = getCurrentUser();
-
-    const result = await this.iapModel
-      .updateOne(
-        { 'goals._id': goalId },
-        {
-          updatedBy: user,
-          $pull: { goals: { _id: goalId } },
-        },
-      )
-      .exec();
-
-    if (result.modifiedCount === 0) {
-      throw new NotFoundException(
-        `No Goal found with id: ${goalId.toString()}.`,
-      );
-    }
-  }
-
-  async removeIap(iapId: MongoId): Promise<void> {
-    this.logger.debug(`removeIap(iapId:${iapId.toString()})`);
-    const result = await this.iapModel.findByIdAndDelete(iapId).lean().exec();
-
-    if (!result) {
-      throw new NotFoundException(
-        `No Inventive Activity Plan found with id: ${iapId.toString()}.`,
-      );
-    }
   }
 }

@@ -1,0 +1,305 @@
+openapi: 3.0.3
+info:
+  title: Inven!RA Activity Provider Interface - OpenAPI 3.0
+  description: This is the Inven!RA Activity Provider (AP) Interface that AP implementations
+    must adhere to be used by Inven!RA implementations.
+  contact:
+    email: email@hugogoncalves.pt
+  license:
+    name: MIT
+    url: https://opensource.org/license/MIT
+  version: 0.0.1
+servers:
+- url: /
+tags:
+- name: Activity Configuration
+  description: Endpoints for activity configuration
+- name: Analytics
+  description: Endpoints for analytics collection
+- name: Activity Deployment
+  description: Endpoints for activity deployment
+paths:
+  /configuration/parameters:
+    get:
+      tags:
+      - Activity Configuration
+      summary: Get the AP Activity Configuration Parameters
+      operationId: getConfigParameters
+      responses:
+        "200":
+          description: A list of HTML field names that Inven!RA can harvest during
+            Activity Configuration.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ConfigParametersResponse"
+      x-swagger-router-controller: ActivityConfiguration
+  /configuration/interface:
+    get:
+      tags:
+      - Activity Configuration
+      summary: Get the AP Activity Configuration Interface URL
+      operationId: getConfigInterface
+      responses:
+        "200":
+          description: The Activity Configuration Interface URL that Inven!RA will
+            use do display the Configuration Interface to the Activity Creator.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ConfigInterfaceResponse"
+      x-swagger-router-controller: ActivityConfiguration
+  /analytics/contract:
+    get:
+      tags:
+      - Analytics
+      summary: Get the AP provided analytics contract
+      operationId: getAnalyticsContract
+      responses:
+        "200":
+          description: Get a set of qualitative and quantitative metrics this AP provides
+            for each activity.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AnalyticsContractResponse"
+      x-swagger-router-controller: Analytics
+  /analytics/{id}:
+    get:
+      tags:
+      - Analytics
+      summary: Get the AP provided analytics for the given activity Id
+      operationId: provideAnalytics
+      parameters:
+      - name: id
+        in: path
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: string
+      responses:
+        "200":
+          description: Get a set of qualitative and quantitative metrics this AP provides
+            for the given activity id per student.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AnalyticsResponse"
+        "404":
+          description: Activity ID not found
+      x-swagger-router-controller: Analytics
+  /activity/{id}:
+    post:
+      tags:
+      - Activity Deployment
+      summary: Deploy the given activity id.
+      description: The AP should prepare itself to start collecting metrics for this
+        activity id.
+      operationId: deploy
+      parameters:
+      - name: id
+        in: path
+        description: Activity id
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DeployActivityRequest"
+        required: true
+      responses:
+        "200":
+          description: OK
+        "400":
+          description: When there are missing activity parameters in the request body.
+      x-swagger-router-controller: ActivityDeployment
+  /activity/{id}/{studentId}:
+    post:
+      tags:
+      - Activity Deployment
+      summary: Start collecting metrics for the provided activity id and student id.
+        Return the Activity URL.
+      description: The AP should start collecting metrics for this activity id and
+        student id combination. It should also return the deployUrl that will be forwarded
+        by the Inven!RA platform to the student.
+      operationId: provideActivity
+      parameters:
+      - name: id
+        in: path
+        description: Activity id
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: string
+      - name: studentId
+        in: path
+        description: Inven!RA Student Id
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProvideActivityReply"
+        "404":
+          description: Activity ID not found
+      x-swagger-router-controller: ActivityDeployment
+components:
+  schemas:
+    ConfigParametersResponse:
+      type: array
+      items:
+        $ref: "#/components/schemas/ConfigParametersResponse_inner"
+    ConfigInterfaceResponse:
+      type: object
+      properties:
+        interfaceUrl:
+          type: string
+      example:
+        interfaceUrl: interfaceUrl
+    Metric:
+      type: object
+      properties:
+        name:
+          type: string
+        type:
+          type: string
+          enum:
+          - string
+          - number
+          - boolean
+          - bigint
+          - date
+          - arrayAny
+          - arrayNumber
+          - arrayString
+          - objectAny
+          - recordAny
+      example:
+        name: name
+        type: string
+    MetricWithValue:
+      type: object
+      properties:
+        name:
+          type: string
+        type:
+          type: string
+          enum:
+          - string
+          - number
+          - boolean
+          - bigint
+          - date
+          - arrayAny
+          - arrayNumber
+          - arrayString
+          - objectAny
+          - recordAny
+        value:
+          type: object
+      example:
+        name: name
+        type: string
+        value: {}
+    QualitativeAnalytics:
+      type: array
+      items:
+        $ref: "#/components/schemas/Metric"
+    QualitativeAnalyticsWithValue:
+      type: array
+      items:
+        $ref: "#/components/schemas/MetricWithValue"
+    QuantitativeAnalytics:
+      type: array
+      items:
+        $ref: "#/components/schemas/Metric"
+    QuantitativeAnalyticsWithValue:
+      type: array
+      items:
+        $ref: "#/components/schemas/MetricWithValue"
+    AnalyticsContractResponse:
+      type: object
+      properties:
+        qualAnalytics:
+          $ref: "#/components/schemas/QualitativeAnalytics"
+        quantAnalytics:
+          $ref: "#/components/schemas/QuantitativeAnalytics"
+      example:
+        qualAnalytics:
+        - name: name
+          type: string
+        - name: name
+          type: string
+        quantAnalytics:
+        - null
+        - null
+    StudentActivityAnalytics:
+      type: object
+      properties:
+        inveniraStudentId:
+          type: string
+        qualAnalytics:
+          $ref: "#/components/schemas/QualitativeAnalyticsWithValue"
+        quantAnalytics:
+          $ref: "#/components/schemas/QuantitativeAnalyticsWithValue"
+      example:
+        inveniraStudentId: inveniraStudentId
+        qualAnalytics:
+        - name: name
+          type: string
+          value: {}
+        - name: name
+          type: string
+          value: {}
+        quantAnalytics:
+        - null
+        - null
+    AnalyticsResponse:
+      type: array
+      items:
+        $ref: "#/components/schemas/StudentActivityAnalytics"
+    DeployActivityRequest:
+      type: object
+      properties:
+        parameters:
+          type: object
+    ProvideActivityReply:
+      type: object
+      properties:
+        activityUrl:
+          type: string
+      example:
+        activityUrl: activityUrl
+    ConfigParametersResponse_inner:
+      type: object
+      properties:
+        name:
+          type: string
+        type:
+          type: string
+          enum:
+          - string
+          - number
+          - boolean
+          - bigint
+          - date
+          - arrayAny
+          - arrayNumber
+          - arrayString
+          - objectAny
+          - recordAny
+      example:
+        name: name
+        type: string

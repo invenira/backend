@@ -1,8 +1,8 @@
-import { Prop, Schema } from '@nestjs/mongoose';
+import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document } from 'mongoose';
 import { Goal, MongoId } from '@invenira/schemas';
 
-@Schema({ _id: true, timestamps: true })
+@Schema({ _id: true, collection: 'goals', timestamps: true })
 export class GoalEntity extends Document<MongoId, never, Goal> implements Goal {
   @Prop({ required: true, unique: true })
   name: string;
@@ -26,3 +26,5 @@ export class GoalEntity extends Document<MongoId, never, Goal> implements Goal {
   @Prop({ required: true })
   updatedBy: string;
 }
+
+export const GoalEntitySchema = SchemaFactory.createForClass(GoalEntity);
