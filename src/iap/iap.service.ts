@@ -83,15 +83,9 @@ export class IAPService implements IQuery, IMutation {
     const iap = await this.getIAP(iapId);
 
     return await Promise.all(
-      iap.activityIds.map(async (activityId) => {
-        const activity = await this.getActivity(activityId);
-
-        const ap = await this.getActivityProvider(activity.activityProviderId);
-
-        // TODO: Buffer response, more than one activity might use the same AP
+      iap.activityProviders.map(async (ap) => {
         const contract = await this.getApClient(ap.url).getAnalyticsContract();
-
-        return [
+        return ap.activities.map((activity) => [
           contract.qualAnalytics?.map((metric) => ({
             name: this.sanitizeString(activity.name) + '.' + metric.name,
             description: '',
@@ -102,9 +96,9 @@ export class IAPService implements IQuery, IMutation {
             description: '',
             type: metric.type || '',
           })) || [],
-        ];
+        ]);
       }),
-    ).then((contracts) => contracts.flat(2));
+    ).then((contracts) => contracts.flat(4));
   }
 
   async createActivityProvider(
@@ -181,23 +175,22 @@ export class IAPService implements IQuery, IMutation {
   async deployIap(iapId: MongoId): Promise<void> {
     const iap = await this.getIAP(iapId);
 
-    for (const activityId of iap.activityIds) {
-      const activity = await this.getActivity(activityId);
-      const ap = await this.getActivityProvider(activity.activityProviderId);
-
-      await this.getApClient(ap.url)
-        .deploy(
-          { parameters: activity.parameters },
-          { params: { id: activity._id.toString() } },
-        )
-        .catch((err: { message: string }) => {
-          throw new BadRequestException(
-            `Unable to contact Activity Provider: ${err.message}`,
-          );
-        });
-      // TODO: add an endpoint to AP API to "un-deploy" an activity in case
-      //   something goes wrong and we need to "un-deploy" the already deployed
-      //   ones.
+    for (const ap of iap.activityProviders) {
+      for (const activity of ap.activities) {
+        await this.getApClient(ap.url)
+          .deploy(
+            { parameters: activity.parameters },
+            { params: { id: activity._id.toString() } },
+          )
+          .catch((err: { message: string }) => {
+            throw new BadRequestException(
+              `Unable to contact Activity Provider: ${err.message}`,
+            );
+          });
+        // TODO: add an endpoint to AP API to "un-deploy" an activity in case
+        //   something goes wrong and we need to "un-deploy" the already deployed
+        //   ones.
+      }
     }
 
     await this.dbService.deployIap(iapId);

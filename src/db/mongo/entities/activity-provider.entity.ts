@@ -1,12 +1,13 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document } from 'mongoose';
-import { ActivityProvider, MongoId } from '@invenira/schemas';
+import { MongoId } from '@invenira/schemas';
 
 @Schema({ _id: true, collection: 'activity-providers', timestamps: true })
-export class ActivityProviderEntity
-  extends Document<MongoId, never, ActivityProvider>
-  implements ActivityProvider
-{
+export class ActivityProviderEntity extends Document<
+  MongoId,
+  never,
+  ActivityProviderEntity
+> {
   @Prop({ required: true, unique: true })
   name: string;
 

@@ -69,7 +69,7 @@ export class MongoService implements DbService {
     return activity;
   }
 
-  // TODO: are transactions required for reading?
+  @WithTransaction()
   async getActivityProvider(apId: MongoId): Promise<ActivityProvider> {
     this.logger.debug(`getActivityProvider(apId:${apId.toString()})`);
     const activityProvider = await this.activityProviderModel
@@ -83,10 +83,18 @@ export class MongoService implements DbService {
       );
     }
 
-    return activityProvider;
+    const apActivities = await this.activityModel
+      .find({ activityProviderId: activityProvider.id })
+      .lean()
+      .exec();
+
+    return {
+      ...activityProvider,
+      activities: apActivities,
+    };
   }
 
-  // TODO: are transactions required for reading?
+  @WithTransaction()
   async getActivityProviderActivities(apId: MongoId): Promise<Activity[]> {
     this.logger.debug(`getActivityProviderActivities(apId:${apId.toString()})`);
 
@@ -95,13 +103,32 @@ export class MongoService implements DbService {
     return this.activityModel.find({ activityProviderId: apId }).lean().exec();
   }
 
-  // TODO: are transactions required for reading?
+  @WithTransaction()
   async getActivityProviders(): Promise<ActivityProvider[]> {
     this.logger.debug(`getActivityProviders()`);
-    return this.activityProviderModel.find().lean().exec();
+
+    return Promise.all(
+      await this.activityProviderModel
+        .find()
+        .lean()
+        .exec()
+        .then((aps) =>
+          aps.map(async (ap) => {
+            const activities: Activity[] = await this.activityModel
+              .find({ activityProviderId: ap.id })
+              .lean()
+              .exec();
+
+            return {
+              ...ap,
+              activities,
+            } as ActivityProvider;
+          }),
+        ),
+    );
   }
 
-  // TODO: are transactions required for reading?
+  @WithTransaction()
   async getIAP(iapId: MongoId): Promise<IAP> {
     this.logger.debug(`getIAP(apId:${iapId.toString()})`);
     const iap = await this.iapModel.findOne({ _id: iapId }).lean().exec();
@@ -112,13 +139,45 @@ export class MongoService implements DbService {
       );
     }
 
-    return iap;
+    const activities = await this.activityModel
+      .find({ _id: { $in: iap.activityIds } })
+      .lean()
+      .exec();
+
+    const activityProviders = await this.activityProviderModel
+      .find({ _id: { $in: activities.map((a) => a.activityProviderId) } })
+      .lean()
+      .exec()
+      .then((aps) =>
+        aps.map((ap) => ({
+          ...ap,
+          activities: activities.filter((a) => a.activityProviderId === ap.id),
+        })),
+      );
+
+    const goals = await this.goalModel
+      .find({ _id: { $in: iap.goalIds } })
+      .lean()
+      .exec();
+
+    return {
+      ...iap,
+      activityProviders,
+      goals,
+    };
   }
 
-  // TODO: are transactions required for reading?
+  @WithTransaction()
   async getIAPs(): Promise<IAP[]> {
     this.logger.debug(`getIAPs()`);
-    return this.iapModel.find().lean().exec();
+
+    return Promise.all(
+      await this.iapModel
+        .find()
+        .lean()
+        .exec()
+        .then((iaps) => iaps.map((iap) => this.getIAP(iap._id))),
+    );
   }
 
   @WithTransaction()
@@ -128,7 +187,10 @@ export class MongoService implements DbService {
     this.logger.debug(`Saving Activity Provider`, createActivityProvider);
     return this.activityProviderModel
       .create(createActivityProvider)
-      .then((activityProvider) => activityProvider.toObject());
+      .then((activityProvider) => ({
+        ...activityProvider.toObject(),
+        activities: [],
+      }));
   }
 
   @WithTransaction()
@@ -210,7 +272,13 @@ export class MongoService implements DbService {
       createGoal,
     );
 
-    await this.getIAP(iapId);
+    const iap = await this.iapModel.findOne({ _id: iapId }).lean().exec();
+
+    if (!iap) {
+      throw new NotFoundException(
+        `Inventive Activity Plan with id ${iapId.toString()} not found.`,
+      );
+    }
 
     const goal = await this.goalModel
       .create(createGoal)
@@ -259,7 +327,11 @@ export class MongoService implements DbService {
   @WithTransaction()
   async createIap(createIap: CreateIAP): Promise<IAP> {
     this.logger.debug(`Creating IAP`, createIap);
-    return this.iapModel.create(createIap).then((iap) => iap.toObject());
+    return this.iapModel.create(createIap).then((iap) => ({
+      ...iap.toObject(),
+      activityProviders: [],
+      goals: [],
+    }));
   }
 
   @WithTransaction()
@@ -267,8 +339,18 @@ export class MongoService implements DbService {
     this.logger.debug(`removeIap(iapId:${iapId.toString()})`);
     const iap = await this.getIAP(iapId);
 
-    await this.goalModel.deleteMany({ _id: { $in: iap.goalIds } });
-    await this.activityModel.deleteMany({ _id: { $in: iap.activityIds } });
+    await this.goalModel.deleteMany({
+      _id: { $in: iap.goals.map((goal) => goal._id) },
+    });
+
+    await this.activityModel.deleteMany({
+      _id: {
+        $in: iap.activityProviders.map((ap) =>
+          ap.activities.map((at) => at._id),
+        ),
+      },
+    });
+
     await this.iapModel.findByIdAndDelete({ _id: iapId });
   }
 

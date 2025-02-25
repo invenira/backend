@@ -1,10 +1,10 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Types } from 'mongoose';
-import { IAP, MongoId } from '@invenira/schemas';
+import { MongoId } from '@invenira/schemas';
 import { object } from 'zod';
 
 @Schema({ _id: true, collection: 'iaps', timestamps: true })
-export class IAPEntity extends Document<MongoId, never, IAP> implements IAP {
+export class IAPEntity extends Document<MongoId, never, IAPEntity> {
   @Prop({ required: true, unique: true })
   name: string;
 
