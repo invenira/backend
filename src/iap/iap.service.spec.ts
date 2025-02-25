@@ -5,7 +5,7 @@ import { Types } from 'mongoose';
 import { createActivityProviderClient } from '@invenira/schemas';
 
 /* eslint-disable */
-/* tslint-disable */
+/* tslint:disable */
 
 // Define a fake AP client to be used in the mock.
 const fakeClient = {
@@ -59,10 +59,8 @@ const mockDbService = {
 const id = new Types.ObjectId();
 
 describe('IAPService', () => {
-  // Create a new instance of the service for each test.
   let service: IAPService;
   beforeEach(() => {
-    // Clear all previous invocations.
     jest.clearAllMocks();
     service = new IAPService(mockDbService as any);
   });
@@ -155,17 +153,19 @@ describe('IAPService', () => {
   });
 
   it('should return available metrics for an IAP', async () => {
-    // Setup an IAP with one activity.
-    const iap = { activityIds: ['act1'] };
-    const activity = {
-      _id: { toString: () => 'act1' },
-      name: 'Test Activity',
-      activityProviderId: 'ap1',
+    // Setup an IAP with one activity provider containing one activity.
+    const iap = {
+      activityProviders: [
+        {
+          url: 'https://ap.com',
+          activities: [
+            { _id: { toString: () => 'act1' }, name: 'Test Activity' },
+          ],
+        },
+      ],
     };
-    const ap = { url: 'https://ap.com' };
     mockDbService.getIAP.mockResolvedValue(iap);
-    mockDbService.getActivity.mockResolvedValue(activity);
-    mockDbService.getActivityProvider.mockResolvedValue(ap);
+    // First test: analytics contract returns types.
     fakeClient.getAnalyticsContract.mockResolvedValue({
       qualAnalytics: [{ name: 'metric1', type: 'string' }],
       quantAnalytics: [{ name: 'metric2', type: 'number' }],
@@ -175,6 +175,7 @@ describe('IAPService', () => {
       { name: 'Test_Activity.metric1', description: '', type: 'string' },
       { name: 'Test_Activity.metric2', description: '', type: 'number' },
     ]);
+    // Second test: contract returns without types.
     fakeClient.getAnalyticsContract.mockResolvedValue({
       qualAnalytics: [{ name: 'metric1' }],
       quantAnalytics: [{ name: 'metric2' }],
@@ -231,7 +232,7 @@ describe('IAPService', () => {
     it('should create an activity if parameters are valid', async () => {
       const iapId = new Types.ObjectId();
       const ap = { url: 'https://ap.com' };
-      // getActivityProvider will return the AP for the given ID.
+      // getActivityProvider returns the AP for the given ID.
       mockDbService.getActivityProvider.mockResolvedValue(ap);
       fakeClient.getConfigParameters.mockResolvedValue([{ name: 'param1' }]);
       const createdActivity = { id: 'act1' };
@@ -279,12 +280,7 @@ describe('IAPService', () => {
       targetValue: 2,
     };
 
-    const createdGoal = {
-      name: 'goal',
-      description: 'goal',
-      formula: '1+1',
-      targetValue: 2,
-    };
+    const createdGoal = { ...goalData };
     mockDbService.createGoal.mockResolvedValue(createdGoal);
     const result = await service.createGoal(id, goalData);
     expect(result).toEqual(createdGoal);
@@ -298,10 +294,7 @@ describe('IAPService', () => {
   });
 
   it('should create an IAP', async () => {
-    const createIapData = {
-      name: 'test',
-      description: 'test',
-    };
+    const createIapData = { name: 'test', description: 'test' };
     const createdIap = { id: 'iap1' };
     mockDbService.createIap.mockResolvedValue(createdIap);
     const result = await service.createIap(createIapData);
@@ -317,43 +310,49 @@ describe('IAPService', () => {
 
   describe('deployIap', () => {
     it('should deploy IAP successfully', async () => {
-      // Setup an IAP with one activity.
-      const iap = { activityIds: ['act1'] };
-      const activity = {
-        _id: { toString: () => 'act1' },
-        name: 'Deploy Activity',
-        activityProviderId: 'ap1',
-        parameters: { param: 'value' },
+      // Setup an IAP with one activity provider that contains one activity.
+      const iap = {
+        activityProviders: [
+          {
+            url: 'https://ap.com',
+            activities: [
+              {
+                _id: { toString: () => 'act1' },
+                name: 'Deploy Activity',
+                parameters: { param: 'value' },
+              },
+            ],
+          },
+        ],
       };
-      const ap = { url: 'https://ap.com' };
-
       mockDbService.getIAP.mockResolvedValue(iap);
-      mockDbService.getActivity.mockResolvedValue(activity);
-      mockDbService.getActivityProvider.mockResolvedValue(ap);
       fakeClient.deploy.mockResolvedValue(undefined);
       mockDbService.deployIap.mockResolvedValue(undefined);
 
       await service.deployIap(id);
       expect(fakeClient.deploy).toHaveBeenCalledWith(
-        { parameters: activity.parameters },
+        { parameters: { param: 'value' } },
         { params: { id: 'act1' } },
       );
       expect(mockDbService.deployIap).toHaveBeenCalledWith(id);
     });
 
     it('should throw BadRequestException if deploy fails', async () => {
-      const iap = { activityIds: ['act1'] };
-      const activity = {
-        _id: { toString: () => 'act1' },
-        name: 'Deploy Activity',
-        activityProviderId: 'ap1',
-        parameters: { param: 'value' },
+      const iap = {
+        activityProviders: [
+          {
+            url: 'https://ap.com',
+            activities: [
+              {
+                _id: { toString: () => 'act1' },
+                name: 'Deploy Activity',
+                parameters: { param: 'value' },
+              },
+            ],
+          },
+        ],
       };
-      const ap = { url: 'https://ap.com' };
-
       mockDbService.getIAP.mockResolvedValue(iap);
-      mockDbService.getActivity.mockResolvedValue(activity);
-      mockDbService.getActivityProvider.mockResolvedValue(ap);
       fakeClient.deploy.mockRejectedValue(new Error('Deploy error'));
 
       await expect(service.deployIap(id)).rejects.toThrow(BadRequestException);
@@ -366,7 +365,6 @@ describe('IAPService', () => {
     fakeClient.getConfigInterface.mockResolvedValue({
       interfaceUrl: 'https://ap.com/interface',
     });
-    // Clear any previous invocations
     jest.clearAllMocks();
 
     // Call getConfigurationInterfaceUrl twice; the first call should create a new client,
@@ -374,27 +372,26 @@ describe('IAPService', () => {
     await service.getConfigurationInterfaceUrl(id);
     await service.getConfigurationInterfaceUrl(id);
 
-    // createActivityProviderClient is mocked from @invenira/schemas,
-    // so we can assert it was called only once for the same URL.
     expect(createActivityProviderClient).toHaveBeenCalledTimes(1);
   });
 
   it('should return an empty metrics array if no analytics contract data is provided', async () => {
-    const iap = { activityIds: ['act1'] };
-    const activity = {
-      _id: { toString: () => 'act1' },
-      name: 'Test Activity With Special!@# Characters',
-      activityProviderId: 'ap1',
-      parameters: {},
+    const iap = {
+      activityProviders: [
+        {
+          url: 'https://ap.com',
+          activities: [
+            {
+              _id: { toString: () => 'act1' },
+              name: 'Test Activity With Special!@# Characters',
+              parameters: {},
+            },
+          ],
+        },
+      ],
     };
-    const ap = { url: 'https://ap.com' };
-
     mockDbService.getIAP.mockResolvedValue(iap);
-    mockDbService.getActivity.mockResolvedValue(activity);
-    mockDbService.getActivityProvider.mockResolvedValue(ap);
-    // Simulate a contract with no analytics arrays.
     fakeClient.getAnalyticsContract.mockResolvedValue({});
-
     const metrics = await service.getIAPAvailableMetrics(id);
     expect(metrics).toEqual([]);
   });
@@ -407,9 +404,7 @@ describe('IAPService', () => {
       parameters: { param1: 'validValue' },
     };
     const ap = { url: 'https://ap.com' };
-
     mockDbService.getActivityProvider.mockResolvedValue(ap);
-    // Force getConfigParameters to reject, simulating a connection error.
     fakeClient.getConfigParameters.mockRejectedValue(
       new Error('Connection error'),
     );

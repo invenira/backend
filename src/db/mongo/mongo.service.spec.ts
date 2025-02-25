@@ -3,14 +3,14 @@ import { Connection, Types } from 'mongoose';
 import { MongoService } from './mongo.service';
 
 /* eslint-disable */
-/* tslint-disable */
+/* tslint:disable */
 
 // Stub getCurrentUser to always return "testUser"
 jest.mock('../../current-user', () => ({
   getCurrentUser: () => 'testUser',
 }));
 
-describe('MongoService', () => {
+describe('MongoService - Updated', () => {
   let service: MongoService;
   let fakeGoalModel: any;
   let fakeActivityProviderModel: any;
@@ -40,59 +40,37 @@ describe('MongoService', () => {
         ]),
     };
 
-    // Fake model implementations with chainable methods.
-    // For find/lean/exec chains, we simulate by returning an object with a lean() method that returns an object with an exec() method.
     fakeActivityModel = {
-      find: jest.fn().mockReturnValue({
-        lean: () => ({ exec: jest.fn() }),
-      }),
-      findOne: jest.fn().mockReturnValue({
-        lean: () => ({ exec: jest.fn() }),
-      }),
-      findByIdAndDelete: jest.fn().mockReturnValue({
-        lean: () => ({ exec: jest.fn() }),
-      }),
+      find: jest.fn(),
+      findOne: jest.fn(),
+      findByIdAndDelete: jest.fn(),
       create: jest.fn(),
       deleteMany: jest.fn(),
     };
 
     fakeActivityProviderModel = {
-      find: jest.fn().mockReturnValue({
-        lean: () => ({ exec: jest.fn() }),
-      }),
-      findOne: jest.fn().mockReturnValue({
-        lean: () => ({ exec: jest.fn() }),
-      }),
-      findByIdAndDelete: jest.fn().mockReturnValue({
-        lean: () => ({ exec: jest.fn() }),
-      }),
+      find: jest.fn(),
+      findOne: jest.fn(),
+      findByIdAndDelete: jest.fn(),
       create: jest.fn(),
     };
 
     fakeIapModel = {
-      find: jest.fn().mockReturnValue({
-        lean: () => ({ exec: jest.fn() }),
-      }),
-      findOne: jest.fn().mockReturnValue({
-        exec: jest.fn(),
-      }),
+      find: jest.fn(),
+      findOne: jest.fn(),
       create: jest.fn(),
-      updateOne: jest.fn().mockResolvedValue({}),
-      findByIdAndDelete: jest.fn().mockReturnValue({
-        lean: () => ({ exec: jest.fn() }),
-      }),
+      updateOne: jest.fn(),
+      findByIdAndDelete: jest.fn(),
       findOneAndUpdate: jest.fn(),
     };
 
     fakeGoalModel = {
+      find: jest.fn(),
       create: jest.fn(),
-      findByIdAndDelete: jest.fn().mockReturnValue({
-        exec: jest.fn(),
-      }),
-      deleteMany: jest.fn().mockResolvedValue({}),
+      findByIdAndDelete: jest.fn(),
+      deleteMany: jest.fn(),
     };
 
-    // Instantiate the service with the fake models and connection.
     service = new MongoService(
       fakeGoalModel,
       fakeActivityProviderModel,
@@ -102,13 +80,16 @@ describe('MongoService', () => {
     );
   });
 
-  describe('Read methods (no transaction)', () => {
+  // Helper to simulate the chain: .lean().exec()
+  function mockChain(result: any) {
+    const exec = jest.fn().mockResolvedValue(result);
+    return { lean: () => ({ exec }) };
+  }
+
+  describe('Read methods', () => {
     it('getActivities should return activities', async () => {
       const expected = [{ id: 'act1' }];
-      const execMock = jest.fn().mockResolvedValue(expected);
-      fakeActivityModel.find.mockReturnValue({
-        lean: () => ({ exec: execMock }),
-      });
+      fakeActivityModel.find.mockReturnValue(mockChain(expected));
       const result = await service.getActivities();
       expect(result).toEqual(expected);
       expect(fakeActivityModel.find).toHaveBeenCalled();
@@ -117,10 +98,7 @@ describe('MongoService', () => {
     it('getActivity should return an activity if found', async () => {
       const id = new Types.ObjectId();
       const expected = { _id: id, name: 'Test Activity' };
-      const execMock = jest.fn().mockResolvedValue(expected);
-      fakeActivityModel.findOne.mockReturnValue({
-        lean: () => ({ exec: execMock }),
-      });
+      fakeActivityModel.findOne.mockReturnValue(mockChain(expected));
       const result = await service.getActivity(id);
       expect(result).toEqual(expected);
       expect(fakeActivityModel.findOne).toHaveBeenCalledWith({ _id: id });
@@ -128,68 +106,189 @@ describe('MongoService', () => {
 
     it('getActivity should throw NotFoundException if not found', async () => {
       const id = new Types.ObjectId();
-      const execMock = jest.fn().mockResolvedValue(null);
-      fakeActivityModel.findOne.mockReturnValue({
-        lean: () => ({ exec: execMock }),
-      });
+      fakeActivityModel.findOne.mockReturnValue(mockChain(null));
       await expect(service.getActivity(id)).rejects.toThrow(NotFoundException);
     });
 
-    it('getActivityProvider should return an activity provider if found', async () => {
-      const id = new Types.ObjectId();
-      const expected = { _id: id, name: 'Provider' };
-      const execMock = jest.fn().mockResolvedValue(expected);
-      fakeActivityProviderModel.findOne.mockReturnValue({
-        lean: () => ({ exec: execMock }),
-      });
-      const result = await service.getActivityProvider(id);
-      expect(result).toEqual(expected);
+    it('getActivityProvider should return provider with activities', async () => {
+      const apId = new Types.ObjectId();
+      const fakeProvider = { _id: apId, id: apId.toString(), name: 'Provider' };
+      const fakeActivities = [
+        {
+          _id: new Types.ObjectId(),
+          activityProviderId: fakeProvider.id,
+          name: 'Activity 1',
+        },
+      ];
+      fakeActivityProviderModel.findOne.mockReturnValue(
+        mockChain(fakeProvider),
+      );
+      fakeActivityModel.find.mockReturnValue(mockChain(fakeActivities));
+      const result = await service.getActivityProvider(apId);
+      expect(result).toEqual({ ...fakeProvider, activities: fakeActivities });
       expect(fakeActivityProviderModel.findOne).toHaveBeenCalledWith({
-        _id: id,
+        _id: apId,
+      });
+      expect(fakeActivityModel.find).toHaveBeenCalledWith({
+        activityProviderId: fakeProvider.id,
       });
     });
 
-    it('getActivityProviders should return all activity providers', async () => {
-      const id = new Types.ObjectId();
-      const expected = [{ _id: id, name: 'Provider' }];
-      const execMock = jest.fn().mockResolvedValue(expected);
-      fakeActivityProviderModel.find.mockReturnValue({
-        lean: () => ({ exec: execMock }),
+    it('getActivityProvider should throw NotFoundException if provider not found', async () => {
+      const apId = new Types.ObjectId();
+      fakeActivityProviderModel.findOne.mockReturnValue(mockChain(null));
+      await expect(service.getActivityProvider(apId)).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+
+    it('getActivityProviderActivities should return activities for a provider', async () => {
+      const apId = new Types.ObjectId();
+      // getActivityProvider call inside returns a valid provider
+      const fakeProvider = { _id: apId, id: apId.toString(), name: 'Provider' };
+      fakeActivityProviderModel.findOne.mockReturnValue(
+        mockChain(fakeProvider),
+      );
+      const expectedActivities = [
+        {
+          _id: new Types.ObjectId(),
+          activityProviderId: apId,
+          name: 'Activity 1',
+        },
+      ];
+      fakeActivityModel.find.mockReturnValue(mockChain(expectedActivities));
+      const result = await service.getActivityProviderActivities(apId);
+      expect(result).toEqual(expectedActivities);
+      expect(fakeActivityModel.find).toHaveBeenCalledWith({
+        activityProviderId: apId,
       });
+    });
+
+    it('getActivityProviders should return all providers with their activities', async () => {
+      const apId = new Types.ObjectId();
+      const fakeProviders = [{ _id: apId, id: apId, name: 'Provider' }];
+      fakeActivityProviderModel.find.mockReturnValue(mockChain(fakeProviders));
+      const fakeActivities = [
+        {
+          _id: new Types.ObjectId(),
+          activityProviderId: apId,
+          name: 'Activity 1',
+        },
+      ];
+      fakeActivityModel.find.mockReturnValue(mockChain(fakeActivities));
       const result = await service.getActivityProviders();
-      expect(result).toEqual(expected);
+      expect(result).toEqual([
+        { ...fakeProviders[0], activities: fakeActivities },
+      ]);
       expect(fakeActivityProviderModel.find).toHaveBeenCalled();
+      expect(fakeActivityModel.find).toHaveBeenCalledWith({
+        activityProviderId: apId,
+      });
     });
 
-    it('getIAP should return an IAP if found', async () => {
-      const id = new Types.ObjectId();
-      const expected = { _id: id, name: 'IAP' };
-      const execMock = jest.fn().mockResolvedValue(expected);
-      fakeIapModel.findOne.mockReturnValue({
-        lean: () => ({ exec: execMock }),
+    it('getIAP should return an IAP with activityProviders and goals', async () => {
+      const iapId = new Types.ObjectId();
+      const fakeIAP = {
+        _id: iapId,
+        activityIds: ['act1', 'act2'],
+        goalIds: ['goal1'],
+      };
+      fakeIapModel.findOne.mockReturnValue(mockChain(fakeIAP));
+
+      const fakeActivities = [
+        { _id: 'act1', activityProviderId: 'ap1', name: 'Activity 1' },
+        { _id: 'act2', activityProviderId: 'ap2', name: 'Activity 2' },
+      ];
+      fakeActivityModel.find.mockReturnValueOnce(mockChain(fakeActivities));
+
+      const fakeProviders = [
+        { _id: 'ap1', id: 'ap1', name: 'Provider 1' },
+        { _id: 'ap2', id: 'ap2', name: 'Provider 2' },
+      ];
+      fakeActivityProviderModel.find.mockReturnValueOnce(
+        mockChain(fakeProviders),
+      );
+
+      const fakeGoals = [{ _id: 'goal1', name: 'Goal 1' }];
+      fakeGoalModel.find = jest.fn().mockReturnValue(mockChain(fakeGoals));
+
+      const result = await service.getIAP(iapId);
+      expect(result).toEqual({
+        ...fakeIAP,
+        activityProviders: [
+          {
+            ...fakeProviders[0],
+            activities: fakeActivities.filter(
+              (a) => a.activityProviderId === 'ap1',
+            ),
+          },
+          {
+            ...fakeProviders[1],
+            activities: fakeActivities.filter(
+              (a) => a.activityProviderId === 'ap2',
+            ),
+          },
+        ],
+        goals: fakeGoals,
       });
-      const result = await service.getIAP(id);
-      expect(result).toEqual(expected);
-      expect(fakeIapModel.findOne).toHaveBeenCalledWith({ _id: id });
+      expect(fakeIapModel.findOne).toHaveBeenCalledWith({ _id: iapId });
+      expect(fakeActivityModel.find).toHaveBeenCalledWith({
+        _id: { $in: fakeIAP.activityIds },
+      });
+      expect(fakeActivityProviderModel.find).toHaveBeenCalledWith({
+        _id: { $in: fakeActivities.map((a) => a.activityProviderId) },
+      });
+      expect(fakeGoalModel.find).toHaveBeenCalledWith({
+        _id: { $in: fakeIAP.goalIds },
+      });
     });
 
-    it('getIAPs should return all IAPs', async () => {
-      const id = new Types.ObjectId();
-      const expected = [{ _id: id, name: 'IAP' }];
-      const execMock = jest.fn().mockResolvedValue(expected);
-      fakeIapModel.find.mockReturnValue({
-        lean: () => ({ exec: execMock }),
-      });
+    it('getIAP should throw NotFoundException if IAP not found', async () => {
+      const iapId = new Types.ObjectId();
+      fakeIapModel.findOne.mockReturnValue(mockChain(null));
+      await expect(service.getIAP(iapId)).rejects.toThrow(NotFoundException);
+    });
+
+    it('getIAPs should return all IAPs with full details', async () => {
+      const iapId = new Types.ObjectId();
+      const fakeIAPList = [
+        { _id: iapId, activityIds: ['act1'], goalIds: ['goal1'] },
+      ];
+      fakeIapModel.find.mockReturnValue(mockChain(fakeIAPList));
+
+      // For each IAP, getIAP is called. Set up mocks for the inner calls.
+      fakeIapModel.findOne.mockReturnValue(mockChain(fakeIAPList[0]));
+      const fakeActivities = [
+        { _id: 'act1', activityProviderId: 'ap1', name: 'Activity 1' },
+      ];
+      fakeActivityModel.find.mockReturnValueOnce(mockChain(fakeActivities));
+      const fakeProviders = [{ _id: 'ap1', id: 'ap1', name: 'Provider 1' }];
+      fakeActivityProviderModel.find.mockReturnValueOnce(
+        mockChain(fakeProviders),
+      );
+      const fakeGoals = [{ _id: 'goal1', name: 'Goal 1' }];
+      fakeGoalModel.find = jest.fn().mockReturnValue(mockChain(fakeGoals));
+
       const result = await service.getIAPs();
-      expect(result).toEqual(expected);
+      expect(result).toEqual([
+        {
+          ...fakeIAPList[0],
+          activityProviders: [
+            {
+              ...fakeProviders[0],
+              activities: fakeActivities.filter(
+                (a) => a.activityProviderId === 'ap1',
+              ),
+            },
+          ],
+          goals: fakeGoals,
+        },
+      ]);
       expect(fakeIapModel.find).toHaveBeenCalled();
     });
   });
 
-  describe('Methods with @WithTransaction decorator', () => {
-    // For all methods decorated with WithTransaction, we check that a session is started,
-    // that commitTransaction (or abortTransaction on error) and endSession are called.
-
+  describe('Transactional methods', () => {
     describe('createActivityProvider', () => {
       it('should create an activity provider and commit the transaction', async () => {
         const input = {
@@ -197,12 +296,11 @@ describe('MongoService', () => {
           description: 'test',
           url: 'https://localhost',
         };
-
         const createdDoc = { toObject: () => ({ _id: 'ap1', ...input }) };
         fakeActivityProviderModel.create.mockResolvedValue(createdDoc);
 
         const result = await service.createActivityProvider(input);
-        expect(result).toEqual({ _id: 'ap1', ...input });
+        expect(result).toEqual({ _id: 'ap1', ...input, activities: [] });
         expect(fakeActivityProviderModel.create).toHaveBeenCalledWith(input);
         expect(fakeConnection.startSession).toHaveBeenCalled();
         expect(fakeSession.startTransaction).toHaveBeenCalled();
@@ -219,7 +317,6 @@ describe('MongoService', () => {
         fakeActivityProviderModel.create.mockRejectedValue(
           new Error('creation error'),
         );
-
         await expect(service.createActivityProvider(input)).rejects.toThrow(
           'creation error',
         );
@@ -231,21 +328,18 @@ describe('MongoService', () => {
     describe('removeActivityProvider', () => {
       it('should throw BadRequestException if provider has activities', async () => {
         const apId = new Types.ObjectId();
-        // Simulate getActivityProvider returning a valid provider...
-        const execMockProvider = jest
-          .fn()
-          .mockResolvedValue({ _id: apId, name: 'AP' });
-        fakeActivityProviderModel.findOne.mockReturnValue({
-          lean: () => ({ exec: execMockProvider }),
-        });
-        // ...and getActivityProviderActivities returning non-empty activities.
-        const execMockActivities = jest
-          .fn()
-          .mockResolvedValue([{ id: 'act1' }]);
-        fakeActivityModel.find.mockReturnValue({
-          lean: () => ({ exec: execMockActivities }),
-        });
-
+        const fakeProvider = { _id: apId, id: apId.toString(), name: 'AP' };
+        fakeActivityProviderModel.findOne.mockReturnValue(
+          mockChain(fakeProvider),
+        );
+        const fakeActivities = [
+          {
+            _id: 'act1',
+            activityProviderId: fakeProvider.id,
+            name: 'Activity 1',
+          },
+        ];
+        fakeActivityModel.find.mockReturnValue(mockChain(fakeActivities));
         await expect(service.removeActivityProvider(apId)).rejects.toThrow(
           BadRequestException,
         );
@@ -255,22 +349,15 @@ describe('MongoService', () => {
 
       it('should remove an activity provider if no activities exist', async () => {
         const apId = new Types.ObjectId();
-        const execMockProvider = jest
-          .fn()
-          .mockResolvedValue({ _id: apId, name: 'AP' });
-        fakeActivityProviderModel.findOne.mockReturnValue({
-          lean: () => ({ exec: execMockProvider }),
-        });
-        const execMockActivities = jest.fn().mockResolvedValue([]);
-        fakeActivityModel.find.mockReturnValue({
-          lean: () => ({ exec: execMockActivities }),
-        });
-        const execMockDelete = jest
-          .fn()
-          .mockResolvedValue({ _id: apId, name: 'AP' });
-        fakeActivityProviderModel.findByIdAndDelete.mockReturnValue({
-          lean: () => ({ exec: execMockDelete }),
-        });
+        const fakeProvider = { _id: apId, id: apId.toString(), name: 'AP' };
+        fakeActivityProviderModel.findOne.mockReturnValue(
+          mockChain(fakeProvider),
+        );
+        fakeActivityModel.find.mockReturnValue(mockChain([]));
+        const fakeDeleteResult = { _id: apId, name: 'AP' };
+        fakeActivityProviderModel.findByIdAndDelete.mockReturnValue(
+          mockChain(fakeDeleteResult),
+        );
 
         await service.removeActivityProvider(apId);
         expect(
@@ -316,9 +403,8 @@ describe('MongoService', () => {
           _id: activityId,
           toObject: () => ({ id: activityId.toString(), name: 'Activity' }),
         };
-        const execMock = jest.fn().mockResolvedValue(foundActivity);
         fakeActivityModel.findByIdAndDelete.mockReturnValue({
-          exec: execMock,
+          exec: jest.fn().mockResolvedValue(foundActivity),
         });
         fakeIapModel.updateOne.mockResolvedValue({});
 
@@ -336,9 +422,8 @@ describe('MongoService', () => {
 
       it('should throw NotFoundException if activity is not found', async () => {
         const activityId = new Types.ObjectId();
-        const execMock = jest.fn().mockResolvedValue(null);
         fakeActivityModel.findByIdAndDelete.mockReturnValue({
-          exec: execMock,
+          exec: jest.fn().mockResolvedValue(null),
         });
         await expect(service.removeActivity(activityId)).rejects.toThrow(
           NotFoundException,
@@ -357,19 +442,16 @@ describe('MongoService', () => {
           formula: '1+1',
           targetValue: 2,
         };
-        // Simulate getIAP inside createGoal
-        const execMockIap = jest
-          .fn()
-          .mockResolvedValue({ _id: iapId, goalIds: [] });
-        fakeIapModel.findOne.mockReturnValue({
-          lean: () => ({ exec: execMockIap }),
-        });
+        const fakeIAP = { _id: iapId, activityIds: [], goalIds: [] };
+        fakeIapModel.findOne.mockReturnValue(mockChain(fakeIAP));
         const createdGoal = {
           id: 'goal1',
           toObject: () => ({ id: 'goal1', ...input }),
         };
         fakeGoalModel.create.mockResolvedValue(createdGoal);
         fakeIapModel.updateOne.mockResolvedValue({});
+        fakeActivityModel.find.mockReturnValueOnce(mockChain([]));
+        fakeActivityProviderModel.find.mockReturnValueOnce(mockChain([]));
 
         const result = await service.createGoal(iapId, input);
         expect(result).toEqual({ id: 'goal1', ...input });
@@ -390,9 +472,8 @@ describe('MongoService', () => {
           _id: goalId,
           toObject: () => ({ id: goalId.toString(), name: 'Goal' }),
         };
-        const execMock = jest.fn().mockResolvedValue(foundGoal);
         fakeGoalModel.findByIdAndDelete.mockReturnValue({
-          exec: execMock,
+          exec: jest.fn().mockResolvedValue(foundGoal),
         });
         fakeIapModel.findOneAndUpdate.mockResolvedValue({});
 
@@ -410,9 +491,8 @@ describe('MongoService', () => {
 
       it('should throw NotFoundException if goal not found', async () => {
         const goalId = new Types.ObjectId();
-        const execMock = jest.fn().mockResolvedValue(null);
         fakeGoalModel.findByIdAndDelete.mockReturnValue({
-          exec: execMock,
+          exec: jest.fn().mockResolvedValue(null),
         });
         await expect(service.removeGoal(goalId)).rejects.toThrow(
           NotFoundException,
@@ -429,7 +509,12 @@ describe('MongoService', () => {
         fakeIapModel.create.mockResolvedValue(createdIap);
 
         const result = await service.createIap(input);
-        expect(result).toEqual({ id: 'iap1', ...input });
+        expect(result).toEqual({
+          id: 'iap1',
+          ...input,
+          activityProviders: [],
+          goals: [],
+        });
         expect(fakeIapModel.create).toHaveBeenCalledWith(input);
         expect(fakeSession.commitTransaction).toHaveBeenCalled();
         expect(fakeSession.endSession).toHaveBeenCalled();
@@ -439,34 +524,50 @@ describe('MongoService', () => {
     describe('removeIap', () => {
       it('should remove an IAP after deleting goals and activities', async () => {
         const iapId = new Types.ObjectId();
-        const iapData = {
+        const fakeIAP = {
           _id: iapId,
-          goalIds: ['goal1'],
-          activityIds: ['act1'],
+          goals: [{ _id: 'goal1' }],
+          activityProviders: [{ activities: [{ _id: 'act1' }] }],
         };
-        const execMockFindOne = jest.fn().mockResolvedValue(iapData);
-        fakeIapModel.findOne.mockReturnValue({
-          lean: () => ({ exec: execMockFindOne }),
-        });
-        const execMockDelete = jest.fn().mockResolvedValue(iapData);
-        fakeIapModel.findByIdAndDelete.mockReturnValue({
-          lean: () => ({ exec: execMockDelete }),
-        });
+        // Simulate getIAP call inside removeIap
+        fakeIapModel.findOne.mockReturnValue(mockChain(fakeIAP));
         fakeGoalModel.deleteMany.mockResolvedValue({});
+        fakeGoalModel.find.mockReturnValueOnce(mockChain([{ _id: 'goal1' }]));
         fakeActivityModel.deleteMany.mockResolvedValue({});
+        fakeActivityModel.find.mockReturnValueOnce(
+          mockChain([{ _id: 'act1' }]),
+        );
+        fakeActivityProviderModel.find.mockReturnValueOnce(
+          mockChain([{ activities: [{ _id: 'act1' }] }]),
+        );
+        fakeIapModel.findByIdAndDelete.mockReturnValue(mockChain(fakeIAP));
 
         await service.removeIap(iapId);
         expect(fakeIapModel.findOne).toHaveBeenCalledWith({ _id: iapId });
         expect(fakeGoalModel.deleteMany).toHaveBeenCalledWith({
-          _id: { $in: iapData.goalIds },
+          _id: { $in: fakeIAP.goals.map((g) => g._id) },
         });
         expect(fakeActivityModel.deleteMany).toHaveBeenCalledWith({
-          _id: { $in: iapData.activityIds },
+          _id: {
+            $in: fakeIAP.activityProviders.map((ap) =>
+              ap.activities.map((at) => at._id),
+            ),
+          },
         });
         expect(fakeIapModel.findByIdAndDelete).toHaveBeenCalledWith({
           _id: iapId,
         });
         expect(fakeSession.commitTransaction).toHaveBeenCalled();
+        expect(fakeSession.endSession).toHaveBeenCalled();
+      });
+
+      it('should throw NotFoundException if IAP not found in removeIap', async () => {
+        const iapId = new Types.ObjectId();
+        fakeIapModel.findOne.mockReturnValue(mockChain(null));
+        await expect(service.removeIap(iapId)).rejects.toThrow(
+          NotFoundException,
+        );
+        expect(fakeSession.abortTransaction).toHaveBeenCalled();
         expect(fakeSession.endSession).toHaveBeenCalled();
       });
     });
@@ -479,7 +580,6 @@ describe('MongoService', () => {
           isDeployed: false,
           save: jest.fn().mockResolvedValue(undefined),
         };
-
         fakeIapModel.findOne.mockReturnValue({
           exec: jest.fn().mockResolvedValue(iapDoc),
         });
@@ -493,7 +593,7 @@ describe('MongoService', () => {
         expect(fakeSession.endSession).toHaveBeenCalled();
       });
 
-      it('should throw NotFoundException if IAP not found', async () => {
+      it('should throw NotFoundException if IAP not found in deployIap', async () => {
         const iapId = new Types.ObjectId();
         fakeIapModel.findOne.mockReturnValue({
           exec: jest.fn().mockResolvedValue(null),
@@ -505,7 +605,7 @@ describe('MongoService', () => {
         expect(fakeSession.endSession).toHaveBeenCalled();
       });
 
-      it('should throw BadRequestException if IAP already deployed', async () => {
+      it('should throw BadRequestException if IAP already deployed in deployIap', async () => {
         const iapId = new Types.ObjectId();
         const iapDoc = {
           _id: iapId,
@@ -524,46 +624,6 @@ describe('MongoService', () => {
     });
   });
 
-  it('getActivityProvider should throw NotFoundException if no provider is found', async () => {
-    const apId = new Types.ObjectId();
-    const execMock = jest.fn().mockResolvedValue(null);
-    fakeActivityProviderModel.findOne.mockReturnValueOnce({
-      lean: () => ({ exec: execMock }),
-    });
-    await expect(service.getActivityProvider(apId)).rejects.toThrow(
-      NotFoundException,
-    );
-  });
-
-  it('getIAP should throw NotFoundException if no IAP is found', async () => {
-    const iapId = new Types.ObjectId();
-    const execMock = jest.fn().mockResolvedValue(null);
-    fakeIapModel.findOne.mockReturnValueOnce({
-      lean: () => ({ exec: execMock }),
-    });
-    await expect(service.getIAP(iapId)).rejects.toThrow(NotFoundException);
-  });
-
-  it('getActivityProviderActivities should throw NotFoundException if activity provider is not found', async () => {
-    const apId = new Types.ObjectId();
-    const execMock = jest.fn().mockResolvedValue(null);
-    fakeActivityProviderModel.findOne.mockReturnValueOnce({
-      lean: () => ({ exec: execMock }),
-    });
-    await expect(service.getActivityProviderActivities(apId)).rejects.toThrow(
-      NotFoundException,
-    );
-  });
-
-  it('removeIap should throw NotFoundException if no IAP is found', async () => {
-    const iapId = new Types.ObjectId();
-    const execMock = jest.fn().mockResolvedValue(null);
-    fakeIapModel.findOne.mockReturnValueOnce({
-      lean: () => ({ exec: execMock }),
-    });
-    await expect(service.removeIap(iapId)).rejects.toThrow(NotFoundException);
-  });
-
   describe('Constructor logging', () => {
     it('should log loaded model names upon instantiation', () => {
       const logSpy = jest
@@ -572,7 +632,6 @@ describe('MongoService', () => {
       const testConnection = {
         modelNames: () => ['TestModel1', 'TestModel2'],
       } as unknown as Connection;
-      // Instantiate a new service with a custom connection.
       new MongoService(
         fakeGoalModel,
         fakeActivityProviderModel,
