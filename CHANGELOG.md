@@ -1,3 +1,11 @@
+## [1.0.2](https://github.com/invenira/backend/compare/v1.0.1...v1.0.2) (2025-02-25)
+
+
+### Bug Fixes
+
+* duplicate_key erro by separating collections; unit tests; e2e test examples with AP ([286f4b5](https://github.com/invenira/backend/commit/286f4b5669580ed09a7cf50ddb4f4874a4aa1d4c))
+* e2e CI test ([6d5334c](https://github.com/invenira/backend/commit/6d5334ca1e45b06c315ce1e7a43a74fad6a28871))
+
 ## [1.0.1](https://github.com/invenira/backend/compare/v1.0.0...v1.0.1) (2025-02-22)
 
 
