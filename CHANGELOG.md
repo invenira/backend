@@ -1,3 +1,10 @@
+# [1.1.0](https://github.com/invenira/backend/compare/v1.0.2...v1.1.0) (2025-02-26)
+
+
+### Features
+
+* decouple GraphQL API from persistence ([50eb2d4](https://github.com/invenira/backend/commit/50eb2d4fedffe405370c64e7bc43de5af69a0669))
+
 ## [1.0.2](https://github.com/invenira/backend/compare/v1.0.1...v1.0.2) (2025-02-25)
 
 
