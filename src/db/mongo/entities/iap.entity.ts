@@ -11,22 +11,16 @@ export class IAPEntity extends Document<MongoId, never, IAPEntity> {
   @Prop({ required: true })
   description: string;
 
-  @Prop({
-    type: [{ type: Types.ObjectId, ref: 'activities' }],
-    default: [],
-  })
+  @Prop({ type: [Types.ObjectId], ref: 'activities', default: [] })
   activityIds: MongoId[];
 
   @Prop({ required: true, default: false })
   isDeployed: boolean;
 
   @Prop({ required: true, type: object, default: {} })
-  deployUrls: Record<string, string>;
+  deployIds: Record<string, string>;
 
-  @Prop({
-    type: [{ type: Types.ObjectId, ref: 'goals' }],
-    default: [],
-  })
+  @Prop({ type: [Types.ObjectId], ref: 'goals', default: [] })
   goalIds: MongoId[];
 
   createdAt: Date;

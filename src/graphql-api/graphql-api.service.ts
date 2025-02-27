@@ -117,4 +117,12 @@ export class GraphqlApiService implements IQuery, IMutation {
   async deployIap(iapId: MongoId): Promise<void> {
     await this.iapService.deployIap(iapId);
   }
+
+  async provideActivity(
+    activityId: string,
+    lmsUserId: string,
+  ): Promise<string> {
+    // TODO: Fix schemas, activityId should be MongoIdScalar instead of String
+    return this.iapService.provideActivity(activityId, lmsUserId);
+  }
 }

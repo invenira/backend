@@ -17,9 +17,7 @@ export class ActivityEntity
   @Prop({ required: true, type: object, default: {} })
   parameters: Record<string, never>;
 
-  @Prop({
-    type: { type: Types.ObjectId, ref: 'activity-providers' },
-  })
+  @Prop({ type: Types.ObjectId, ref: 'activity-providers' })
   activityProviderId: MongoId;
 
   createdAt: Date;

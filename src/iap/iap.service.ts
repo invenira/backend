@@ -15,9 +15,11 @@ import {
   IQuery,
   MetricGQLSchema,
   MongoId,
+  MongoIdSchema,
 } from '@invenira/schemas';
 import { BadRequestException, Inject } from '@nestjs/common';
 import { DB_SERVICE, DbService } from '../db/db.service';
+import { ActivityEntity } from '../db/mongo/entities/activity.entity';
 
 export class IAPService implements IQuery, IMutation {
   private readonly apClients: Map<string, typeof ActivityProviderAPI> =
@@ -194,6 +196,33 @@ export class IAPService implements IQuery, IMutation {
     }
 
     await this.dbService.deployIap(iapId);
+  }
+
+  async provideActivity(
+    activityId: string,
+    lmsUserId: string,
+  ): Promise<string> {
+    let deployUrl = await this.dbService.getDeployUrl(activityId, lmsUserId);
+
+    if (!deployUrl) {
+      // TODO: Fix schemas, activityId should be MongoIdScalar instead of String
+      const activity = await this.getActivity(MongoIdSchema.parse(activityId));
+      const ap = await this.getActivityProvider(
+        (activity as ActivityEntity).activityProviderId,
+      );
+
+      const studentId = await this.dbService.createUser(lmsUserId);
+
+      deployUrl = (
+        await this.getApClient(ap.url).provideActivity(undefined, {
+          params: { id: activityId.toString(), studentId },
+        })
+      ).activityUrl;
+    }
+
+    await this.dbService.createDeploy(activityId, lmsUserId, deployUrl);
+
+    return deployUrl;
   }
 
   private getApClient(url: string): typeof ActivityProviderAPI {

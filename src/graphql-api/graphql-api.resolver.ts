@@ -21,9 +21,13 @@ import {
   MongoIdSchema,
 } from '@invenira/schemas';
 import { UseGuards } from '@nestjs/common';
-import { GqlAuthGuard } from '../auth/guards/gql-auth.guard';
-import { RolesGuard } from '../auth/guards/roles.guard';
-import { INSTRUCTOR_ROLES, Roles } from '../auth/roles.decorator';
+import {
+  GqlAuthGuard,
+  INSTRUCTOR_ROLES,
+  Public,
+  Roles,
+  RolesGuard,
+} from '../auth';
 import { ZodValidationPipe } from '../pipes';
 
 @Resolver('IAPGQLSchema')
@@ -190,5 +194,18 @@ export class GraphqlApiResolver implements IQuery, IMutation {
     iapId: MongoId,
   ): Promise<void> {
     return this.graphqlApiService.deployIap(iapId);
+  }
+
+  @Public()
+  @Roles()
+  @Mutation('provideActivity')
+  provideActivity(
+    @Args('activityId', new ZodValidationPipe(MongoIdSchema))
+    activityId: string,
+    @Args('lmsUserId')
+    lmsUserId: string,
+  ): string | Promise<string> {
+    // TODO: Fix schemas, activityId should be MongoIdScalar instead of String
+    return this.graphqlApiService.provideActivity(activityId, lmsUserId);
   }
 }

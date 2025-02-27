@@ -2,7 +2,7 @@ import { BadRequestException } from '@nestjs/common';
 import { z } from 'zod';
 import { IAPService } from './iap.service';
 import { Types } from 'mongoose';
-import { createActivityProviderClient } from '@invenira/schemas';
+import { createActivityProviderClient, MongoIdSchema } from '@invenira/schemas';
 
 /* eslint-disable */
 /* tslint:disable */
@@ -18,6 +18,7 @@ const fakeClient = {
     quantAnalytics: [{ name: 'metric2', type: 'number' }],
   }),
   deploy: jest.fn().mockResolvedValue(undefined),
+  provideActivity: jest.fn(),
 };
 
 // Mock the external functions from '@invenira/schemas'
@@ -54,6 +55,9 @@ const mockDbService = {
   createIap: jest.fn(),
   removeIap: jest.fn(),
   deployIap: jest.fn(),
+  getDeployUrl: jest.fn(),
+  createUser: jest.fn(),
+  createDeploy: jest.fn(),
 };
 
 const id = new Types.ObjectId();
@@ -412,5 +416,93 @@ describe('IAPService', () => {
     await expect(
       service.createActivity(new Types.ObjectId(), createActivityData),
     ).rejects.toThrow(BadRequestException);
+  });
+
+  describe('provideActivity', () => {
+    it('provideActivity should use existing deployUrl if available', async () => {
+      const activityId = 'act1';
+      const lmsUserId = 'user1';
+      (mockDbService.getDeployUrl as jest.Mock).mockResolvedValue(
+        'http://deploy.url/existing',
+      );
+      (mockDbService.createDeploy as jest.Mock).mockResolvedValue(undefined);
+      const result = await service.provideActivity(activityId, lmsUserId);
+      expect(result).toEqual('http://deploy.url/existing');
+      expect(mockDbService.getDeployUrl).toHaveBeenCalledWith(
+        activityId,
+        lmsUserId,
+      );
+      expect(mockDbService.createDeploy).toHaveBeenCalledWith(
+        activityId,
+        lmsUserId,
+        'http://deploy.url/existing',
+      );
+    });
+
+    it('provideActivity should call AP client provideActivity if deployUrl is not available', async () => {
+      const activityId = new Types.ObjectId();
+      const lmsUserId = 'user2';
+      (mockDbService.getDeployUrl as jest.Mock).mockResolvedValue(undefined);
+      const activity = {
+        id: activityId,
+        activityProviderId: 'ap1',
+        parameters: {},
+      };
+      (mockDbService.getActivity as jest.Mock).mockResolvedValue(activity);
+      const provider = { id: 'ap1', url: 'https://ap.example.com' };
+      (mockDbService.getActivityProvider as jest.Mock).mockResolvedValue(
+        provider,
+      );
+      (mockDbService.createUser as jest.Mock).mockResolvedValue('student1');
+      const fakeProvideActivityResponse = {
+        activityUrl: 'http://deploy.url/new',
+      };
+      fakeClient.provideActivity = jest
+        .fn()
+        .mockResolvedValue(fakeProvideActivityResponse);
+      (service as any).apClients.set(provider.url, fakeClient);
+      (mockDbService.createDeploy as jest.Mock).mockResolvedValue(undefined);
+      jest.spyOn(MongoIdSchema, 'parse').mockReturnValue(activityId);
+      const result = await service.provideActivity(
+        activityId as any,
+        lmsUserId,
+      );
+      expect(result).toEqual('http://deploy.url/new');
+      expect(mockDbService.createUser).toHaveBeenCalledWith(lmsUserId);
+      expect(fakeClient.provideActivity).toHaveBeenCalledWith(undefined, {
+        params: { id: activityId.toString(), studentId: 'student1' },
+      });
+      expect(mockDbService.createDeploy).toHaveBeenCalledWith(
+        activityId,
+        lmsUserId,
+        'http://deploy.url/new',
+      );
+    });
+  });
+
+  describe('Private methods behavior', () => {
+    it('getApClient should create a new client if not already cached', async () => {
+      const url = 'https://newap.example.com';
+      expect((service as any).apClients.has(url)).toBe(false);
+      // Call a public method that uses getApClient (e.g. getConfigurationParameters)
+      const provider = { id: 'apNew', url };
+      (mockDbService.getActivityProvider as jest.Mock).mockResolvedValue(
+        provider,
+      );
+      fakeClient.getConfigParameters = jest
+        .fn()
+        .mockResolvedValue([{ name: 'param' }]);
+      await service.getConfigurationParameters(new Types.ObjectId());
+      expect((service as any).apClients.has(url)).toBe(true);
+    });
+
+    it('sanitizeString should replace spaces with underscores and remove invalid characters', () => {
+      // Access sanitizeString via casting to any.
+      const sanitize = (service as any).sanitizeString.bind(service);
+      const input = 'Hello World! @2023';
+      const expected = 'Hello_World_2023';
+      const result = sanitize(input);
+      expect(result).toEqual(expected);
+    });
   });
 });
