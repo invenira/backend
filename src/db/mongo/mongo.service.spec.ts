@@ -16,6 +16,8 @@ describe('MongoService - Updated', () => {
   let fakeActivityProviderModel: any;
   let fakeActivityModel: any;
   let fakeIapModel: any;
+  let fakeUserModel: any;
+  let fakeDeployModel: any;
   let fakeConnection: any;
   let fakeSession: any;
 
@@ -37,6 +39,8 @@ describe('MongoService - Updated', () => {
           'ActivityProviderEntity',
           'ActivityEntity',
           'IAPEntity',
+          'UserEntity',
+          'DeployEntity',
         ]),
     };
 
@@ -71,11 +75,23 @@ describe('MongoService - Updated', () => {
       deleteMany: jest.fn(),
     };
 
+    fakeUserModel = {
+      findOne: jest.fn(),
+      create: jest.fn(),
+    };
+
+    fakeDeployModel = {
+      findOne: jest.fn(),
+      create: jest.fn(),
+    };
+
     service = new MongoService(
       fakeGoalModel,
       fakeActivityProviderModel,
       fakeActivityModel,
       fakeIapModel,
+      fakeUserModel,
+      fakeDeployModel,
       fakeConnection,
     );
   });
@@ -637,11 +653,166 @@ describe('MongoService - Updated', () => {
         fakeActivityProviderModel,
         fakeActivityModel,
         fakeIapModel,
+        fakeUserModel,
+        fakeDeployModel,
         testConnection,
       );
       expect(logSpy).toHaveBeenCalledWith('Model loaded: TestModel1');
       expect(logSpy).toHaveBeenCalledWith('Model loaded: TestModel2');
       logSpy.mockRestore();
+    });
+  });
+
+  describe('User and Deploy methods', () => {
+    describe('createUser', () => {
+      it('should create a new user if not found', async () => {
+        const lmsUserId = 'lms-123';
+        // Simulate user not found
+        fakeUserModel.findOne.mockReturnValueOnce(mockChain(null));
+        const newUserDoc = { _id: 'newUser123' };
+        fakeUserModel.create.mockResolvedValueOnce(newUserDoc);
+
+        const result = await service.createUser(lmsUserId);
+        expect(result).toEqual('newUser123');
+        expect(fakeUserModel.findOne).toHaveBeenCalledWith({ lmsUserId });
+        expect(fakeUserModel.create).toHaveBeenCalledWith({ lmsUserId });
+      });
+
+      it('should return existing user id if user is found', async () => {
+        const lmsUserId = 'lms-456';
+        const existingUser = { _id: 'existingUser456' };
+        fakeUserModel.findOne.mockReturnValueOnce(mockChain(existingUser));
+
+        const result = await service.createUser(lmsUserId);
+        expect(result).toEqual('existingUser456');
+        expect(fakeUserModel.findOne).toHaveBeenCalledWith({ lmsUserId });
+        // Ensure create is not called when user exists
+        expect(fakeUserModel.create).not.toHaveBeenCalled();
+      });
+    });
+
+    describe('createDeploy', () => {
+      const activityId = 'act-deploy-1';
+      const lmsUserId = 'lms-deploy-1';
+      const deployUrl = 'https://deploy.example.com';
+
+      it('should throw NotFoundException if activity is not found', async () => {
+        // Simulate activity not found
+        fakeActivityModel.findOne.mockReturnValueOnce(mockChain(null));
+
+        await expect(
+          service.createDeploy(activityId, lmsUserId, deployUrl),
+        ).rejects.toThrow(`Activity with id ${activityId} not found.`);
+        expect(fakeSession.abortTransaction).toHaveBeenCalled();
+        expect(fakeSession.endSession).toHaveBeenCalled();
+      });
+
+      it('should return existing deploy id if a deploy already exists', async () => {
+        // Simulate found activity
+        const activity = { _id: activityId, name: 'Test Activity' };
+        fakeActivityModel.findOne.mockReturnValueOnce(mockChain(activity));
+        // Simulate that user already exists
+        const existingUser = { _id: 'userDeploy1' };
+        fakeUserModel.findOne.mockReturnValueOnce(mockChain(existingUser));
+        // For createUser, the call returns existing user id
+        // Now simulate that deploy already exists
+        const existingDeploy = { _id: 'deployExisting' };
+        fakeDeployModel.findOne.mockReturnValueOnce(mockChain(existingDeploy));
+
+        const result = await service.createDeploy(
+          activityId,
+          lmsUserId,
+          deployUrl,
+        );
+        expect(result).toEqual('deployExisting');
+        expect(fakeActivityModel.findOne).toHaveBeenCalledWith({
+          _id: activityId,
+        });
+        expect(fakeDeployModel.findOne).toHaveBeenCalledWith({
+          userId: 'userDeploy1',
+          activityId,
+          deployUrl,
+        });
+        expect(fakeSession.commitTransaction).toHaveBeenCalled();
+        expect(fakeSession.endSession).toHaveBeenCalled();
+      });
+
+      it('should create a new deploy and return its id if none exists', async () => {
+        // Simulate found activity
+        const activity = { _id: activityId, name: 'Test Activity' };
+        fakeActivityModel.findOne.mockReturnValueOnce(mockChain(activity));
+        // Simulate that user does not exist so that createUser creates one
+        fakeUserModel.findOne.mockReturnValueOnce(mockChain(null));
+        const newUserDoc = { _id: 'userDeploy2' };
+        fakeUserModel.create.mockResolvedValueOnce(newUserDoc);
+        // Simulate that no deploy exists
+        fakeDeployModel.findOne.mockReturnValueOnce(mockChain(null));
+        // Simulate creation of a new deploy document
+        const newDeployDoc = { _id: 'deployNew' };
+        fakeDeployModel.create.mockResolvedValueOnce(newDeployDoc);
+
+        const result = await service.createDeploy(
+          activityId,
+          lmsUserId,
+          deployUrl,
+        );
+        expect(result).toEqual('deployNew');
+        expect(fakeActivityModel.findOne).toHaveBeenCalledWith({
+          _id: activityId,
+        });
+        expect(fakeUserModel.findOne).toHaveBeenCalledWith({ lmsUserId });
+        expect(fakeUserModel.create).toHaveBeenCalledWith({ lmsUserId });
+        expect(fakeDeployModel.findOne).toHaveBeenCalledWith({
+          userId: 'userDeploy2',
+          activityId,
+          deployUrl,
+        });
+        expect(fakeDeployModel.create).toHaveBeenCalledWith({
+          userId: 'userDeploy2',
+          activityId,
+          deployUrl,
+        });
+        expect(fakeSession.commitTransaction).toHaveBeenCalled();
+        expect(fakeSession.endSession).toHaveBeenCalled();
+      });
+    });
+
+    describe('getDeployUrl', () => {
+      const activityId = 'act-deploy-url-1';
+      const lmsUserId = 'lms-deploy-url-1';
+
+      it('should return the deployUrl if a deploy exists', async () => {
+        // Simulate that user exists
+        const existingUser = { _id: 'userUrl1' };
+        fakeUserModel.findOne.mockReturnValueOnce(mockChain(existingUser));
+        // Simulate deploy found with a deployUrl
+        const deployDoc = { deployUrl: 'https://deploy.url/1' };
+        fakeDeployModel.findOne.mockReturnValueOnce(mockChain(deployDoc));
+
+        const result = await service.getDeployUrl(activityId, lmsUserId);
+        expect(result).toEqual('https://deploy.url/1');
+        expect(fakeUserModel.findOne).toHaveBeenCalledWith({ lmsUserId });
+        expect(fakeDeployModel.findOne).toHaveBeenCalledWith({
+          activityId,
+          userId: 'userUrl1',
+        });
+      });
+
+      it('should return undefined if no deploy is found', async () => {
+        // Simulate that user exists
+        const existingUser = { _id: 'userUrl2' };
+        fakeUserModel.findOne.mockReturnValueOnce(mockChain(existingUser));
+        // Simulate no deploy found
+        fakeDeployModel.findOne.mockReturnValueOnce(mockChain(null));
+
+        const result = await service.getDeployUrl(activityId, lmsUserId);
+        expect(result).toBeUndefined();
+        expect(fakeUserModel.findOne).toHaveBeenCalledWith({ lmsUserId });
+        expect(fakeDeployModel.findOne).toHaveBeenCalledWith({
+          activityId,
+          userId: 'userUrl2',
+        });
+      });
     });
   });
 });

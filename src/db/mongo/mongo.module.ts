@@ -14,6 +14,8 @@ import {
   ActivityEntity,
   ActivityEntitySchema,
 } from './entities/activity.entity';
+import { UserEntity, UserEntitySchema } from './entities/user.entity';
+import { DeployEntity, DeployEntitySchema } from './entities/deploy.entity';
 
 const mongooseLogger = new Logger('Mongoose', { timestamp: true });
 
@@ -93,6 +95,34 @@ const mongooseLogger = new Logger('Mongoose', { timestamp: true });
 
           schema.post('save', (next: { _doc: object }) => {
             mongooseLogger.debug(`Saving IAP: ${JSON.stringify(next._doc)}`);
+          });
+
+          return schema;
+        },
+      },
+    ]),
+    MongooseModule.forFeatureAsync([
+      {
+        name: UserEntity.name,
+        useFactory: () => {
+          const schema = UserEntitySchema;
+
+          schema.post('save', (next: { _doc: object }) => {
+            mongooseLogger.debug(`Saving User: ${JSON.stringify(next._doc)}`);
+          });
+
+          return schema;
+        },
+      },
+    ]),
+    MongooseModule.forFeatureAsync([
+      {
+        name: DeployEntity.name,
+        useFactory: () => {
+          const schema = DeployEntitySchema;
+
+          schema.post('save', (next: { _doc: object }) => {
+            mongooseLogger.debug(`Saving Deploy: ${JSON.stringify(next._doc)}`);
           });
 
           return schema;

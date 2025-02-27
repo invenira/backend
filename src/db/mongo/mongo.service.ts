@@ -24,6 +24,8 @@ import { GoalEntity } from './entities/goal.entity';
 import { ActivityProviderEntity } from './entities/activity-provider.entity';
 import { ActivityEntity } from './entities/activity.entity';
 import { WithTransaction } from './with-transaction';
+import { UserEntity } from './entities/user.entity';
+import { DeployEntity } from './entities/deploy.entity';
 
 @Injectable()
 export class MongoService implements DbService {
@@ -38,6 +40,10 @@ export class MongoService implements DbService {
     private readonly activityModel: Model<ActivityEntity>,
     @InjectModel(IAPEntity.name)
     private readonly iapModel: Model<IAPEntity>,
+    @InjectModel(UserEntity.name)
+    private readonly userModel: Model<UserEntity>,
+    @InjectModel(DeployEntity.name)
+    private readonly deployModel: Model<DeployEntity>,
     @InjectConnection()
     private connection: Connection,
   ) {
@@ -376,5 +382,69 @@ export class MongoService implements DbService {
     iap.updatedBy = getCurrentUser() || '';
     iap.isDeployed = true;
     await iap.save();
+  }
+
+  @WithTransaction()
+  async createUser(lmsUserId: string): Promise<string> {
+    const user = await this.userModel.findOne({ lmsUserId }).lean().exec();
+
+    if (!user) {
+      return (await this.userModel.create({ lmsUserId }))._id.toString();
+    }
+
+    return user._id.toString();
+  }
+
+  @WithTransaction()
+  async createDeploy(
+    activityId: string,
+    lmsUserId: string,
+    deployUrl: string,
+  ): Promise<string> {
+    const activity = await this.activityModel
+      .findOne({ _id: activityId })
+      .lean()
+      .exec();
+
+    if (!activity) {
+      throw new NotFoundException(`Activity with id ${activityId} not found.`);
+    }
+
+    const userId = await this.createUser(lmsUserId);
+
+    const deploy = await this.deployModel
+      .findOne({
+        userId,
+        activityId,
+        deployUrl,
+      })
+      .lean()
+      .exec();
+
+    if (deploy) {
+      return deploy._id.toString();
+    }
+
+    return (
+      await this.deployModel.create({
+        userId,
+        activityId,
+        deployUrl,
+      })
+    )._id.toString();
+  }
+
+  async getDeployUrl(
+    activityId: string,
+    lmsUserId: string,
+  ): Promise<string | undefined> {
+    const userId = await this.createUser(lmsUserId);
+
+    const deploy = await this.deployModel
+      .findOne({ activityId, userId })
+      .lean()
+      .exec();
+
+    return deploy?.deployUrl;
   }
 }

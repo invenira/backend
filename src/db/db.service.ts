@@ -47,6 +47,19 @@ export interface DbService {
   removeIap(iapId: MongoIdScalar): Promise<void>;
 
   deployIap(iapId: MongoIdScalar): Promise<void>;
+
+  createUser(lmsUserId: string): Promise<string>;
+
+  createDeploy(
+    activityId: string,
+    lmsUserId: string,
+    deployUrl: string,
+  ): Promise<string>;
+
+  getDeployUrl(
+    activityId: string,
+    lmsUserId: string,
+  ): Promise<string | undefined>;
 }
 
 export const DB_SERVICE = 'INVENIRA_DB_SERVICE';
