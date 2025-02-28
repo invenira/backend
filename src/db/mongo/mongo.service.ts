@@ -189,8 +189,8 @@ export class MongoService implements DbService {
   ): Promise<ActivityProvider> {
     this.logger.debug(`Saving Activity Provider`, createActivityProvider);
 
-    createActivityProvider.createdBy=this.contextService.get().userId
-    createActivityProvider.updatedBy=this.contextService.get().userId;
+    createActivityProvider.createdBy = this.contextService.get().userId;
+    createActivityProvider.updatedBy = this.contextService.get().userId;
 
     return this.activityProviderModel
       .create(createActivityProvider)
@@ -278,7 +278,7 @@ export class MongoService implements DbService {
       `Saving Goal within IAP with id ${iapId.toString()}`,
       createGoal,
     );
-    createGoal.createdBy=this.contextService.get().userId;
+    createGoal.createdBy = this.contextService.get().userId;
     createGoal.updatedBy = this.contextService.get().userId;
     const iap = await this.iapModel.findOne({ _id: iapId }).lean().exec();
 
