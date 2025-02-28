@@ -460,9 +460,11 @@ describe('MongoService - Updated', () => {
         };
         const fakeIAP = { _id: iapId, activityIds: [], goalIds: [] };
         fakeIapModel.findOne.mockReturnValue(mockChain(fakeIAP));
+        const goalId = new Types.ObjectId();
         const createdGoal = {
+          _id: goalId,
           id: 'goal1',
-          toObject: () => ({ id: 'goal1', ...input }),
+          toObject: () => ({ _id: goalId, id: 'goal1', ...input }),
         };
         fakeGoalModel.create.mockResolvedValue(createdGoal);
         fakeIapModel.updateOne.mockResolvedValue({});
@@ -470,11 +472,11 @@ describe('MongoService - Updated', () => {
         fakeActivityProviderModel.find.mockReturnValueOnce(mockChain([]));
 
         const result = await service.createGoal(iapId, input);
-        expect(result).toEqual({ id: 'goal1', ...input });
+        expect(result).toEqual({ _id: goalId, id: 'goal1', ...input });
         expect(fakeGoalModel.create).toHaveBeenCalledWith(input);
         expect(fakeIapModel.updateOne).toHaveBeenCalledWith(
-          { _id: iapId.toString() },
-          { updatedBy: 'testUser', $push: { goalIds: createdGoal.id } },
+          { _id: iapId },
+          { updatedBy: 'testUser', $push: { goalIds: createdGoal._id } },
         );
         expect(fakeSession.commitTransaction).toHaveBeenCalled();
         expect(fakeSession.endSession).toHaveBeenCalled();
