@@ -212,20 +212,28 @@ describe('MongoService - Updated', () => {
       fakeIapModel.findOne.mockReturnValue(mockChain(fakeIAP));
 
       const fakeActivities = [
-        { _id: 'act1', activityProviderId: 'ap1', name: 'Activity 1' },
-        { _id: 'act2', activityProviderId: 'ap2', name: 'Activity 2' },
+        {
+          _id: new Types.ObjectId(),
+          activityProviderId: new Types.ObjectId(),
+          name: 'Activity 1',
+        },
+        {
+          _id: new Types.ObjectId(),
+          activityProviderId: new Types.ObjectId(),
+          name: 'Activity 2',
+        },
       ];
       fakeActivityModel.find.mockReturnValueOnce(mockChain(fakeActivities));
 
       const fakeProviders = [
-        { _id: 'ap1', id: 'ap1', name: 'Provider 1' },
-        { _id: 'ap2', id: 'ap2', name: 'Provider 2' },
+        { _id: new Types.ObjectId(), id: 'ap1', name: 'Provider 1' },
+        { _id: new Types.ObjectId(), id: 'ap2', name: 'Provider 2' },
       ];
       fakeActivityProviderModel.find.mockReturnValueOnce(
         mockChain(fakeProviders),
       );
 
-      const fakeGoals = [{ _id: 'goal1', name: 'Goal 1' }];
+      const fakeGoals = [{ _id: new Types.ObjectId(), name: 'Goal 1' }];
       fakeGoalModel.find = jest.fn().mockReturnValue(mockChain(fakeGoals));
 
       const result = await service.getIAP(iapId);
@@ -234,14 +242,14 @@ describe('MongoService - Updated', () => {
         activityProviders: [
           {
             ...fakeProviders[0],
-            activities: fakeActivities.filter(
-              (a) => a.activityProviderId === 'ap1',
+            activities: fakeActivities.filter((a) =>
+              a.activityProviderId.equals('ap1'),
             ),
           },
           {
             ...fakeProviders[1],
-            activities: fakeActivities.filter(
-              (a) => a.activityProviderId === 'ap2',
+            activities: fakeActivities.filter((a) =>
+              a.activityProviderId.equals('ap2'),
             ),
           },
         ],
@@ -267,22 +275,25 @@ describe('MongoService - Updated', () => {
 
     it('getIAPs should return all IAPs with full details', async () => {
       const iapId = new Types.ObjectId();
+      const apId = new Types.ObjectId();
+      const actId = new Types.ObjectId();
+      const goalId = new Types.ObjectId();
       const fakeIAPList = [
-        { _id: iapId, activityIds: ['act1'], goalIds: ['goal1'] },
+        { _id: iapId, activityIds: [actId], goalIds: [goalId] },
       ];
       fakeIapModel.find.mockReturnValue(mockChain(fakeIAPList));
 
       // For each IAP, getIAP is called. Set up mocks for the inner calls.
       fakeIapModel.findOne.mockReturnValue(mockChain(fakeIAPList[0]));
       const fakeActivities = [
-        { _id: 'act1', activityProviderId: 'ap1', name: 'Activity 1' },
+        { _id: actId, activityProviderId: apId, name: 'Activity 1' },
       ];
       fakeActivityModel.find.mockReturnValueOnce(mockChain(fakeActivities));
-      const fakeProviders = [{ _id: 'ap1', id: 'ap1', name: 'Provider 1' }];
+      const fakeProviders = [{ _id: apId, id: apId, name: 'Provider 1' }];
       fakeActivityProviderModel.find.mockReturnValueOnce(
         mockChain(fakeProviders),
       );
-      const fakeGoals = [{ _id: 'goal1', name: 'Goal 1' }];
+      const fakeGoals = [{ _id: goalId, name: 'Goal 1' }];
       fakeGoalModel.find = jest.fn().mockReturnValue(mockChain(fakeGoals));
 
       const result = await service.getIAPs();
@@ -292,8 +303,8 @@ describe('MongoService - Updated', () => {
           activityProviders: [
             {
               ...fakeProviders[0],
-              activities: fakeActivities.filter(
-                (a) => a.activityProviderId === 'ap1',
+              activities: fakeActivities.filter((a) =>
+                a.activityProviderId.equals(apId),
               ),
             },
           ],
@@ -542,21 +553,34 @@ describe('MongoService - Updated', () => {
     describe('removeIap', () => {
       it('should remove an IAP after deleting goals and activities', async () => {
         const iapId = new Types.ObjectId();
+        const goalId = new Types.ObjectId();
+        const apId = new Types.ObjectId();
+        const actId = new Types.ObjectId();
         const fakeIAP = {
           _id: iapId,
-          goals: [{ _id: 'goal1' }],
-          activityProviders: [{ activities: [{ _id: 'act1' }] }],
+          goals: [{ _id: goalId }],
+          activityProviders: [
+            {
+              _id: apId,
+              activities: [{ _id: actId, activityProviderId: apId }],
+            },
+          ],
         };
         // Simulate getIAP call inside removeIap
         fakeIapModel.findOne.mockReturnValue(mockChain(fakeIAP));
         fakeGoalModel.deleteMany.mockResolvedValue({});
-        fakeGoalModel.find.mockReturnValueOnce(mockChain([{ _id: 'goal1' }]));
+        fakeGoalModel.find.mockReturnValueOnce(mockChain([{ _id: goalId }]));
         fakeActivityModel.deleteMany.mockResolvedValue({});
         fakeActivityModel.find.mockReturnValueOnce(
-          mockChain([{ _id: 'act1' }]),
+          mockChain([{ _id: actId, activityProviderId: apId }]),
         );
         fakeActivityProviderModel.find.mockReturnValueOnce(
-          mockChain([{ activities: [{ _id: 'act1' }] }]),
+          mockChain([
+            {
+              _id: apId,
+              activities: [{ _id: actId, activityProviderId: apId }],
+            },
+          ]),
         );
         fakeIapModel.findByIdAndDelete.mockReturnValue(mockChain(fakeIAP));
 
