@@ -15,7 +15,6 @@ import {
   MongoId,
 } from '@invenira/schemas';
 import { IAPService } from '../iap/iap.service';
-import { getCurrentUser } from '../current-user';
 
 @Injectable()
 export class GraphqlApiService implements IQuery, IMutation {
@@ -68,9 +67,6 @@ export class GraphqlApiService implements IQuery, IMutation {
   async createActivityProvider(
     createActivityProvider: CreateActivityProvider,
   ): Promise<ActivityProvider> {
-    // TODO: Tech Debt, find another way to decouple this
-    createActivityProvider.createdBy = getCurrentUser();
-    createActivityProvider.updatedBy = getCurrentUser();
     return this.iapService.createActivityProvider(createActivityProvider);
   }
 
@@ -82,9 +78,6 @@ export class GraphqlApiService implements IQuery, IMutation {
     iapId: MongoId,
     createActivity: CreateActivity,
   ): Promise<Activity> {
-    // TODO: Tech Debt, find another way to decouple this
-    createActivity.createdBy = getCurrentUser();
-    createActivity.updatedBy = getCurrentUser();
     return this.iapService.createActivity(iapId, createActivity);
   }
 
@@ -93,9 +86,6 @@ export class GraphqlApiService implements IQuery, IMutation {
   }
 
   async createGoal(iapId: MongoId, createGoal: CreateGoal): Promise<Goal> {
-    // TODO: Tech Debt, find another way to decouple this
-    createGoal.createdBy = getCurrentUser();
-    createGoal.updatedBy = getCurrentUser();
     return this.iapService.createGoal(iapId, createGoal);
   }
 
@@ -104,9 +94,6 @@ export class GraphqlApiService implements IQuery, IMutation {
   }
 
   async createIap(createIap: CreateIAP): Promise<IAP> {
-    // TODO: Tech Debt, find another way to decouple this
-    createIap.createdBy = getCurrentUser();
-    createIap.updatedBy = getCurrentUser();
     return this.iapService.createIap(createIap);
   }
 

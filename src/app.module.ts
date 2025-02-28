@@ -11,9 +11,11 @@ import {
 } from '@invenira/schemas';
 import { ApolloServerPluginLandingPageLocalDefault } from '@apollo/server/plugin/landingPage/default';
 import { AuthModule } from './auth';
+import { ContextModule } from './context/context.module';
 
 @Module({
   imports: [
+    ContextModule,
     AuthModule,
     ConfigModule.forRoot({ isGlobal: true }),
     GraphqlApiModule,
@@ -28,6 +30,7 @@ import { AuthModule } from './auth';
       }),
       inject: [ConfigService],
     }),
+    ContextModule,
   ],
   controllers: [],
   providers: [DateScalar, RecordScalar, VoidScalar, MongoIdCustomScalar],

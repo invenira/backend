@@ -18,7 +18,6 @@ import {
 import { InjectConnection, InjectModel } from '@nestjs/mongoose';
 import { Connection, Model } from 'mongoose';
 import { IAPEntity } from './entities/iap.entity';
-import { getCurrentUser } from '../../current-user';
 import { DbService } from '../db.service';
 import { GoalEntity } from './entities/goal.entity';
 import { ActivityProviderEntity } from './entities/activity-provider.entity';
@@ -26,26 +25,24 @@ import { ActivityEntity } from './entities/activity.entity';
 import { WithTransaction } from './with-transaction';
 import { UserEntity } from './entities/user.entity';
 import { DeployEntity } from './entities/deploy.entity';
+import { ContextService } from '../../context/context.service';
 
 @Injectable()
 export class MongoService implements DbService {
   private readonly logger = new Logger(MongoService.name);
 
   constructor(
-    @InjectModel(GoalEntity.name)
-    private readonly goalModel: Model<GoalEntity>,
+    private contextService: ContextService,
+    @InjectModel(GoalEntity.name) private readonly goalModel: Model<GoalEntity>,
     @InjectModel(ActivityProviderEntity.name)
     private readonly activityProviderModel: Model<ActivityProviderEntity>,
     @InjectModel(ActivityEntity.name)
     private readonly activityModel: Model<ActivityEntity>,
-    @InjectModel(IAPEntity.name)
-    private readonly iapModel: Model<IAPEntity>,
-    @InjectModel(UserEntity.name)
-    private readonly userModel: Model<UserEntity>,
+    @InjectModel(IAPEntity.name) private readonly iapModel: Model<IAPEntity>,
+    @InjectModel(UserEntity.name) private readonly userModel: Model<UserEntity>,
     @InjectModel(DeployEntity.name)
     private readonly deployModel: Model<DeployEntity>,
-    @InjectConnection()
-    private connection: Connection,
+    @InjectConnection() private connection: Connection,
   ) {
     this.connection.modelNames().forEach((modelName) => {
       this.logger.log(`Model loaded: ${modelName}`);
@@ -75,8 +72,9 @@ export class MongoService implements DbService {
     return activity;
   }
 
-  @WithTransaction()
-  async getActivityProvider(apId: MongoId): Promise<ActivityProvider> {
+  @WithTransaction() async getActivityProvider(
+    apId: MongoId,
+  ): Promise<ActivityProvider> {
     this.logger.debug(`getActivityProvider(apId:${apId.toString()})`);
     const activityProvider = await this.activityProviderModel
       .findOne({ _id: apId })
@@ -100,8 +98,9 @@ export class MongoService implements DbService {
     };
   }
 
-  @WithTransaction()
-  async getActivityProviderActivities(apId: MongoId): Promise<Activity[]> {
+  @WithTransaction() async getActivityProviderActivities(
+    apId: MongoId,
+  ): Promise<Activity[]> {
     this.logger.debug(`getActivityProviderActivities(apId:${apId.toString()})`);
 
     await this.getActivityProvider(apId);
@@ -109,8 +108,7 @@ export class MongoService implements DbService {
     return this.activityModel.find({ activityProviderId: apId }).lean().exec();
   }
 
-  @WithTransaction()
-  async getActivityProviders(): Promise<ActivityProvider[]> {
+  @WithTransaction() async getActivityProviders(): Promise<ActivityProvider[]> {
     this.logger.debug(`getActivityProviders()`);
 
     return Promise.all(
@@ -134,8 +132,7 @@ export class MongoService implements DbService {
     );
   }
 
-  @WithTransaction()
-  async getIAP(iapId: MongoId): Promise<IAP> {
+  @WithTransaction() async getIAP(iapId: MongoId): Promise<IAP> {
     this.logger.debug(`getIAP(apId:${iapId.toString()})`);
     const iap = await this.iapModel.findOne({ _id: iapId }).lean().exec();
 
@@ -175,8 +172,7 @@ export class MongoService implements DbService {
     };
   }
 
-  @WithTransaction()
-  async getIAPs(): Promise<IAP[]> {
+  @WithTransaction() async getIAPs(): Promise<IAP[]> {
     this.logger.debug(`getIAPs()`);
 
     return Promise.all(
@@ -188,11 +184,14 @@ export class MongoService implements DbService {
     );
   }
 
-  @WithTransaction()
-  async createActivityProvider(
+  @WithTransaction() async createActivityProvider(
     createActivityProvider: CreateActivityProvider,
   ): Promise<ActivityProvider> {
     this.logger.debug(`Saving Activity Provider`, createActivityProvider);
+
+    createActivityProvider.createdBy=this.contextService.get().userId
+    createActivityProvider.updatedBy=this.contextService.get().userId;
+
     return this.activityProviderModel
       .create(createActivityProvider)
       .then((activityProvider) => ({
@@ -201,8 +200,9 @@ export class MongoService implements DbService {
       }));
   }
 
-  @WithTransaction()
-  async removeActivityProvider(apId: MongoId): Promise<void> {
+  @WithTransaction() async removeActivityProvider(
+    apId: MongoId,
+  ): Promise<void> {
     this.logger.debug(`removeActivityProvider(apId:${apId.toString()})`);
 
     const activities = await this.getActivityProviderActivities(apId);
@@ -219,8 +219,7 @@ export class MongoService implements DbService {
       .exec();
   }
 
-  @WithTransaction()
-  async createActivity(
+  @WithTransaction() async createActivity(
     iapId: MongoId,
     createActivity: CreateActivity,
   ): Promise<Activity> {
@@ -230,14 +229,14 @@ export class MongoService implements DbService {
         `id ${iapId.toString()}`,
       createActivity,
     );
-
+    createActivity.createdBy = this.contextService.get().userId;
+    createActivity.updatedBy = this.contextService.get().userId;
     const activity = await this.activityModel.create(createActivity);
 
     await this.iapModel.updateOne(
       { _id: iapId.toString() },
       {
-        // TODO: Tech Debt, find another way to decouple this
-        updatedBy: getCurrentUser(),
+        updatedBy: this.contextService.get().userId,
         $push: {
           activityIds: activity.id,
         },
@@ -247,8 +246,7 @@ export class MongoService implements DbService {
     return activity.toObject();
   }
 
-  @WithTransaction()
-  async removeActivity(activityId: MongoId): Promise<void> {
+  @WithTransaction() async removeActivity(activityId: MongoId): Promise<void> {
     this.logger.debug(`removeActivity(activityId:${activityId.toString()})`);
 
     const activity = await this.activityModel
@@ -258,8 +256,7 @@ export class MongoService implements DbService {
     await this.iapModel.updateOne(
       { activityIds: activityId },
       {
-        // TODO: Tech Debt, find another way to decouple this
-        updatedBy: getCurrentUser(),
+        updatedBy: this.contextService.get().userId,
         pull: {
           activityIds: activityId,
         },
@@ -273,13 +270,16 @@ export class MongoService implements DbService {
     }
   }
 
-  @WithTransaction()
-  async createGoal(iapId: MongoId, createGoal: CreateGoal): Promise<Goal> {
+  @WithTransaction() async createGoal(
+    iapId: MongoId,
+    createGoal: CreateGoal,
+  ): Promise<Goal> {
     this.logger.debug(
       `Saving Goal within IAP with id ${iapId.toString()}`,
       createGoal,
     );
-
+    createGoal.createdBy=this.contextService.get().userId;
+    createGoal.updatedBy = this.contextService.get().userId;
     const iap = await this.iapModel.findOne({ _id: iapId }).lean().exec();
 
     if (!iap) {
@@ -295,8 +295,7 @@ export class MongoService implements DbService {
     await this.iapModel.updateOne(
       { _id: iapId },
       {
-        // TODO: Tech Debt, find another way to decouple this
-        updatedBy: getCurrentUser(),
+        updatedBy: this.contextService.get().userId,
         $push: {
           goalIds: goal._id,
         },
@@ -306,8 +305,7 @@ export class MongoService implements DbService {
     return goal;
   }
 
-  @WithTransaction()
-  async removeGoal(goalId: MongoId): Promise<void> {
+  @WithTransaction() async removeGoal(goalId: MongoId): Promise<void> {
     this.logger.debug(`removeGoal(goalId:${goalId.toString()})`);
 
     const goal = await this.goalModel
@@ -323,8 +321,7 @@ export class MongoService implements DbService {
     await this.iapModel.findOneAndUpdate(
       { goalIds: goalId },
       {
-        // TODO: Tech Debt, find another way to decouple this
-        updatedBy: getCurrentUser(),
+        updatedBy: this.contextService.get().userId,
         $pull: {
           goalIds: goalId,
         },
@@ -332,9 +329,10 @@ export class MongoService implements DbService {
     );
   }
 
-  @WithTransaction()
-  async createIap(createIap: CreateIAP): Promise<IAP> {
+  @WithTransaction() async createIap(createIap: CreateIAP): Promise<IAP> {
     this.logger.debug(`Creating IAP`, createIap);
+    createIap.createdBy = this.contextService.get().userId;
+    createIap.updatedBy = this.contextService.get().userId;
     return this.iapModel.create(createIap).then((iap) => ({
       ...iap.toObject(),
       activityProviders: [],
@@ -342,8 +340,7 @@ export class MongoService implements DbService {
     }));
   }
 
-  @WithTransaction()
-  async removeIap(iapId: MongoId): Promise<void> {
+  @WithTransaction() async removeIap(iapId: MongoId): Promise<void> {
     this.logger.debug(`removeIap(iapId:${iapId.toString()})`);
     const iap = await this.getIAP(iapId);
 
@@ -362,8 +359,7 @@ export class MongoService implements DbService {
     await this.iapModel.findByIdAndDelete({ _id: iapId });
   }
 
-  @WithTransaction()
-  async deployIap(iapId: MongoId): Promise<void> {
+  @WithTransaction() async deployIap(iapId: MongoId): Promise<void> {
     this.logger.debug(`Deploying IAP with id ${iapId.toString()}`);
 
     const iap = await this.iapModel.findOne({ _id: iapId }).exec();
@@ -380,14 +376,12 @@ export class MongoService implements DbService {
       );
     }
 
-    // TODO: Tech Debt, find another way to decouple this
-    iap.updatedBy = getCurrentUser() || '';
+    iap.updatedBy = this.contextService.get().userId;
     iap.isDeployed = true;
     await iap.save();
   }
 
-  @WithTransaction()
-  async createUser(lmsUserId: string): Promise<string> {
+  @WithTransaction() async createUser(lmsUserId: string): Promise<string> {
     const user = await this.userModel.findOne({ lmsUserId }).lean().exec();
 
     if (!user) {
@@ -397,8 +391,7 @@ export class MongoService implements DbService {
     return user._id.toString();
   }
 
-  @WithTransaction()
-  async createDeploy(
+  @WithTransaction() async createDeploy(
     activityId: string,
     lmsUserId: string,
     deployUrl: string,
