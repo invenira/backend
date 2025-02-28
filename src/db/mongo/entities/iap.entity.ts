@@ -34,4 +34,4 @@ export class IAPEntity extends Document<MongoId, never, IAPEntity> {
   updatedBy: string;
 }
 
-export const IapSchema = SchemaFactory.createForClass(IAPEntity);
+export const IAPEntitySchema = SchemaFactory.createForClass(IAPEntity);

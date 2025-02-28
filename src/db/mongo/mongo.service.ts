@@ -291,12 +291,12 @@ export class MongoService implements DbService {
       .then((goal) => goal.toObject());
 
     await this.iapModel.updateOne(
-      { _id: iapId.toString() },
+      { _id: iapId },
       {
         // TODO: Tech Debt, find another way to decouple this
         updatedBy: getCurrentUser(),
         $push: {
-          goalIds: goal.id,
+          goalIds: goal._id,
         },
       },
     );

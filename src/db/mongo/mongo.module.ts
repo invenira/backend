@@ -1,6 +1,6 @@
 import { Logger, Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
-import { IAPEntity, IapSchema } from './entities/iap.entity';
+import { IAPEntity, IAPEntitySchema } from './entities/iap.entity';
 import { MongoService } from './mongo.service';
 import { DB_SERVICE } from '../db.service';
 import { ConfigModule, ConfigService } from '@nestjs/config';
@@ -91,7 +91,7 @@ const mongooseLogger = new Logger('Mongoose', { timestamp: true });
       {
         name: IAPEntity.name,
         useFactory: () => {
-          const schema = IapSchema;
+          const schema = IAPEntitySchema;
 
           schema.post('save', (next: { _doc: object }) => {
             mongooseLogger.debug(`Saving IAP: ${JSON.stringify(next._doc)}`);
