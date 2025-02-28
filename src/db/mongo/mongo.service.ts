@@ -157,7 +157,9 @@ export class MongoService implements DbService {
       .then((aps) =>
         aps.map((ap) => ({
           ...ap,
-          activities: activities.filter((a) => a.activityProviderId === ap.id),
+          activities: activities.filter((a) =>
+            a.activityProviderId.equals(ap._id),
+          ),
         })),
       );
 
