@@ -1,3 +1,10 @@
+# [1.2.0](https://github.com/invenira/backend/compare/v1.1.0...v1.2.0) (2025-02-28)
+
+
+### Features
+
+* provide activity ([7a1a8b5](https://github.com/invenira/backend/commit/7a1a8b53bb7707635dee8f3134358b1122c41adb))
+
 # [1.1.0](https://github.com/invenira/backend/compare/v1.0.2...v1.1.0) (2025-02-26)
 
 
