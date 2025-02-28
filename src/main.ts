@@ -33,7 +33,7 @@ const timeDiff = (s: number) => Number(time() - s);
     const userAgent = req.headers['user-agent'] || '';
 
     const statusCode = reply.statusCode;
-    const contentLength = reply.getHeader('context-length') as string;
+    const contentLength = reply.getHeader('content-length') as string;
 
     fastifyLogger.debug(
       `${method} ${url} ${statusCode} ${contentLength || '-'} - ${userAgent} ${ip}`,

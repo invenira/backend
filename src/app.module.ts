@@ -30,7 +30,6 @@ import { ContextModule } from './context/context.module';
       }),
       inject: [ConfigService],
     }),
-    ContextModule,
   ],
   controllers: [],
   providers: [DateScalar, RecordScalar, VoidScalar, MongoIdCustomScalar],

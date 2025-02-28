@@ -1,9 +1,9 @@
 import { Injectable } from '@nestjs/common';
 import { AsyncLocalStorage } from 'async_hooks';
 
-interface RequestContext {
+export type RequestContext = {
   userId: string;
-}
+};
 
 @Injectable()
 export class ContextService {
