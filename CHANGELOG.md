@@ -1,3 +1,11 @@
+## [1.2.1](https://github.com/invenira/backend/compare/v1.2.0...v1.2.1) (2025-02-28)
+
+
+### Bug Fixes
+
+* missing activity ids in IAP ([82cb6e9](https://github.com/invenira/backend/commit/82cb6e9a84f8c954618252cf81516a60383f8f00))
+* missing goal ids in IAP ([f9fc85e](https://github.com/invenira/backend/commit/f9fc85ea1d0fcd48e04427f71cec97d76fe69458))
+
 # [1.2.0](https://github.com/invenira/backend/compare/v1.1.0...v1.2.0) (2025-02-28)
 
 
