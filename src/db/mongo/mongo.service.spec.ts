@@ -6,8 +6,8 @@ import { MongoService } from './mongo.service';
 /* tslint:disable */
 
 // Stub getCurrentUser to always return "testUser"
-jest.mock('../../current-user', () => ({
-  getCurrentUser: () => 'testUser',
+jest.mock('../../context/context.service', () => ({
+  get: () => 'testUser',
 }));
 
 describe('MongoService - Updated', () => {
@@ -20,8 +20,13 @@ describe('MongoService - Updated', () => {
   let fakeDeployModel: any;
   let fakeConnection: any;
   let fakeSession: any;
+  let fakeContext: any;
 
   beforeEach(() => {
+    fakeContext = {
+      get: jest.fn().mockReturnValue({ userId: 'testUser' }),
+    };
+
     fakeSession = {
       startTransaction: jest.fn(),
       commitTransaction: jest.fn().mockResolvedValue(undefined),
@@ -30,8 +35,7 @@ describe('MongoService - Updated', () => {
     };
 
     fakeConnection = {
-      startSession: jest.fn().mockResolvedValue(fakeSession),
-      // Simulate that the connection has loaded models
+      startSession: jest.fn().mockResolvedValue(fakeSession), // Simulate that the connection has loaded models
       modelNames: jest
         .fn()
         .mockReturnValue([
@@ -86,6 +90,7 @@ describe('MongoService - Updated', () => {
     };
 
     service = new MongoService(
+      fakeContext,
       fakeGoalModel,
       fakeActivityProviderModel,
       fakeActivityModel,
@@ -323,12 +328,23 @@ describe('MongoService - Updated', () => {
           description: 'test',
           url: 'https://localhost',
         };
+        const expectedInput = {
+          ...input,
+          createdBy: 'testUser',
+          updatedBy: 'testUser',
+        };
         const createdDoc = { toObject: () => ({ _id: 'ap1', ...input }) };
         fakeActivityProviderModel.create.mockResolvedValue(createdDoc);
 
         const result = await service.createActivityProvider(input);
-        expect(result).toEqual({ _id: 'ap1', ...input, activities: [] });
-        expect(fakeActivityProviderModel.create).toHaveBeenCalledWith(input);
+        expect(result).toEqual({
+          _id: 'ap1',
+          ...expectedInput,
+          activities: [],
+        });
+        expect(fakeActivityProviderModel.create).toHaveBeenCalledWith(
+          expectedInput,
+        );
         expect(fakeConnection.startSession).toHaveBeenCalled();
         expect(fakeSession.startTransaction).toHaveBeenCalled();
         expect(fakeSession.commitTransaction).toHaveBeenCalled();
@@ -404,6 +420,11 @@ describe('MongoService - Updated', () => {
           description: 'test',
           parameters: {},
         };
+        const expectedInput = {
+          ...input,
+          createdBy: 'testUser',
+          updatedBy: 'testUser',
+        };
         const createdActivity = {
           id: 'act1',
           toObject: () => ({ id: 'act1', ...input }),
@@ -412,11 +433,14 @@ describe('MongoService - Updated', () => {
         fakeIapModel.updateOne.mockResolvedValue({});
 
         const result = await service.createActivity(iapId, input);
-        expect(result).toEqual({ id: 'act1', ...input });
-        expect(fakeActivityModel.create).toHaveBeenCalledWith(input);
+        expect(result).toEqual({ id: 'act1', ...expectedInput });
+        expect(fakeActivityModel.create).toHaveBeenCalledWith(expectedInput);
         expect(fakeIapModel.updateOne).toHaveBeenCalledWith(
           { _id: iapId.toString() },
-          { updatedBy: 'testUser', $push: { activityIds: createdActivity.id } },
+          {
+            updatedBy: 'testUser',
+            $push: { activityIds: createdActivity.id },
+          },
         );
         expect(fakeSession.commitTransaction).toHaveBeenCalled();
         expect(fakeSession.endSession).toHaveBeenCalled();
@@ -441,7 +465,10 @@ describe('MongoService - Updated', () => {
         });
         expect(fakeIapModel.updateOne).toHaveBeenCalledWith(
           { activityIds: activityId },
-          { updatedBy: 'testUser', pull: { activityIds: activityId } },
+          {
+            updatedBy: 'testUser',
+            pull: { activityIds: activityId },
+          },
         );
         expect(fakeSession.commitTransaction).toHaveBeenCalled();
         expect(fakeSession.endSession).toHaveBeenCalled();
@@ -469,6 +496,11 @@ describe('MongoService - Updated', () => {
           formula: '1+1',
           targetValue: 2,
         };
+        const expectedInput = {
+          ...input,
+          createdBy: 'testUser',
+          updatedBy: 'testUser',
+        };
         const fakeIAP = { _id: iapId, activityIds: [], goalIds: [] };
         fakeIapModel.findOne.mockReturnValue(mockChain(fakeIAP));
         const goalId = new Types.ObjectId();
@@ -483,11 +515,14 @@ describe('MongoService - Updated', () => {
         fakeActivityProviderModel.find.mockReturnValueOnce(mockChain([]));
 
         const result = await service.createGoal(iapId, input);
-        expect(result).toEqual({ _id: goalId, id: 'goal1', ...input });
-        expect(fakeGoalModel.create).toHaveBeenCalledWith(input);
+        expect(result).toEqual({ _id: goalId, id: 'goal1', ...expectedInput });
+        expect(fakeGoalModel.create).toHaveBeenCalledWith(expectedInput);
         expect(fakeIapModel.updateOne).toHaveBeenCalledWith(
           { _id: iapId },
-          { updatedBy: 'testUser', $push: { goalIds: createdGoal._id } },
+          {
+            updatedBy: 'testUser',
+            $push: { goalIds: createdGoal._id },
+          },
         );
         expect(fakeSession.commitTransaction).toHaveBeenCalled();
         expect(fakeSession.endSession).toHaveBeenCalled();
@@ -512,7 +547,10 @@ describe('MongoService - Updated', () => {
         });
         expect(fakeIapModel.findOneAndUpdate).toHaveBeenCalledWith(
           { goalIds: goalId },
-          { updatedBy: 'testUser', $pull: { goalIds: goalId } },
+          {
+            updatedBy: 'testUser',
+            $pull: { goalIds: goalId },
+          },
         );
         expect(fakeSession.commitTransaction).toHaveBeenCalled();
         expect(fakeSession.endSession).toHaveBeenCalled();
@@ -534,17 +572,22 @@ describe('MongoService - Updated', () => {
     describe('createIap', () => {
       it('should create an IAP and commit the transaction', async () => {
         const input = { name: 'IAP', description: 'test' };
+        const expectedInput = {
+          ...input,
+          createdBy: 'testUser',
+          updatedBy: 'testUser',
+        };
         const createdIap = { toObject: () => ({ id: 'iap1', ...input }) };
         fakeIapModel.create.mockResolvedValue(createdIap);
 
         const result = await service.createIap(input);
         expect(result).toEqual({
           id: 'iap1',
-          ...input,
+          ...expectedInput,
           activityProviders: [],
           goals: [],
         });
-        expect(fakeIapModel.create).toHaveBeenCalledWith(input);
+        expect(fakeIapModel.create).toHaveBeenCalledWith(expectedInput);
         expect(fakeSession.commitTransaction).toHaveBeenCalled();
         expect(fakeSession.endSession).toHaveBeenCalled();
       });
@@ -675,6 +718,7 @@ describe('MongoService - Updated', () => {
         modelNames: () => ['TestModel1', 'TestModel2'],
       } as unknown as Connection;
       new MongoService(
+        fakeContext,
         fakeGoalModel,
         fakeActivityProviderModel,
         fakeActivityModel,

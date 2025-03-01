@@ -4,14 +4,10 @@ import { GraphqlApiService } from './graphql-api.service';
 import { IAPService } from '../iap/iap.service';
 import { Types } from 'mongoose';
 import { createMock } from '@golevelup/ts-jest';
+import { ContextService } from '../context/context.service';
 
 /* eslint-disable */
 /* tslint-disable */
-
-// Stub getCurrentUser to always return "testUser"
-jest.mock('../current-user', () => ({
-  getCurrentUser: () => 'testUser',
-}));
 
 const sampleId = new Types.ObjectId();
 
@@ -22,6 +18,7 @@ describe('GraphqlApiModule', () => {
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
+        ContextService,
         GraphqlApiResolver,
         GraphqlApiService,
         { provide: IAPService, useValue: createMock<IAPService>() },
@@ -78,8 +75,6 @@ describe('GraphqlApiModule', () => {
       // The GraphqlApiService will enrich the input with createdBy/updatedBy.
       const expectedInput = {
         ...input,
-        createdBy: 'testUser',
-        updatedBy: 'testUser',
       };
       const provider = { id: 'ap1', ...expectedInput };
       (iapService.createActivityProvider as jest.Mock).mockResolvedValue(
@@ -110,8 +105,6 @@ describe('GraphqlApiModule', () => {
       };
       const expectedInput = {
         ...input,
-        createdBy: 'testUser',
-        updatedBy: 'testUser',
       };
       const activity = { id: 'act1', ...expectedInput };
       (iapService.createActivity as jest.Mock).mockResolvedValue(activity);
@@ -139,8 +132,6 @@ describe('GraphqlApiModule', () => {
       };
       const expectedInput = {
         ...input,
-        createdBy: 'testUser',
-        updatedBy: 'testUser',
       };
       const goal = { id: 'goal1', ...expectedInput };
       (iapService.createGoal as jest.Mock).mockResolvedValue(goal);
@@ -159,8 +150,6 @@ describe('GraphqlApiModule', () => {
       const input = { name: 'IAP', description: 'desc' };
       const expectedInput = {
         ...input,
-        createdBy: 'testUser',
-        updatedBy: 'testUser',
       };
       const iap = { id: 'iap1', ...expectedInput };
       (iapService.createIap as jest.Mock).mockResolvedValue(iap);

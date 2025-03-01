@@ -20,7 +20,7 @@ import {
   MongoId,
   MongoIdSchema,
 } from '@invenira/schemas';
-import { UseGuards } from '@nestjs/common';
+import { UseGuards, UseInterceptors } from '@nestjs/common';
 import {
   GqlAuthGuard,
   INSTRUCTOR_ROLES,
@@ -29,10 +29,12 @@ import {
   RolesGuard,
 } from '../auth';
 import { ZodValidationPipe } from '../pipes';
+import { ContextInterceptor } from '../context/context.interceptor';
 
 @Resolver('IAPGQLSchema')
 @UseGuards(GqlAuthGuard, RolesGuard)
 @Roles(...INSTRUCTOR_ROLES)
+@UseInterceptors(ContextInterceptor)
 export class GraphqlApiResolver implements IQuery, IMutation {
   constructor(private readonly graphqlApiService: GraphqlApiService) {}
 

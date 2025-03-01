@@ -4,11 +4,6 @@ import { Types } from 'mongoose';
 /* eslint-disable */
 /* tslint-disable */
 
-// Stub getCurrentUser so it always returns a fixed value.
-jest.mock('../current-user', () => ({
-  getCurrentUser: jest.fn(() => 'testUser'),
-}));
-
 describe('GraphqlApiService', () => {
   let service: GraphqlApiService;
   let mockIapService: any;
@@ -144,8 +139,6 @@ describe('GraphqlApiService', () => {
       const input = { name: 'AP', description: 'desc', url: 'https://ap.com' };
       const expectedInput = {
         ...input,
-        createdBy: 'testUser',
-        updatedBy: 'testUser',
       };
       const provider = { id: 'ap1', ...expectedInput };
       mockIapService.createActivityProvider.mockResolvedValue(provider);
@@ -178,8 +171,6 @@ describe('GraphqlApiService', () => {
       };
       const expectedInput = {
         ...input,
-        createdBy: 'testUser',
-        updatedBy: 'testUser',
       };
       const activity = { id: 'act1', ...expectedInput };
       mockIapService.createActivity.mockResolvedValue(activity);
@@ -211,8 +202,6 @@ describe('GraphqlApiService', () => {
       };
       const expectedInput = {
         ...input,
-        createdBy: 'testUser',
-        updatedBy: 'testUser',
       };
       const goal = { id: 'goal1', ...expectedInput };
       mockIapService.createGoal.mockResolvedValue(goal);
@@ -238,8 +227,6 @@ describe('GraphqlApiService', () => {
       const input = { name: 'IAP', description: 'desc' };
       const expectedInput = {
         ...input,
-        createdBy: 'testUser',
-        updatedBy: 'testUser',
       };
       const iap = { id: 'iap1', ...expectedInput };
       mockIapService.createIap.mockResolvedValue(iap);
