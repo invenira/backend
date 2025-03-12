@@ -63,7 +63,7 @@
     "@types/node": "^22.10.7",
     "@types/passport-jwt": "^4.0.1",
     "@types/supertest": "^6.0.2",
-    "axios": "^1.8.1",
+    "axios": "^1.8.3",
     "conventional-changelog-conventionalcommits": "^8.0.0",
     "eslint": "^9.21.0",
     "eslint-config-prettier": "^10.0.2",
